@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIdownloader — генерация и скачивание видео с помощью ИИ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #0a0a0b; color: #e8e8ea;
+    display: grid; grid-template-columns: 380px 1fr;
+    height: 100vh; overflow: hidden;
+  }
+  @media (max-width: 768px) {
+    body { grid-template-columns: 1fr; }
+    .sidebar { max-height: 50vh; }
+  }
+
+  .sidebar {
+    background: #141416; border-right: 1px solid #2a2a2e;
+    padding: 20px; overflow-y: auto;
+  }
+  .stage {
+    display: flex; flex-direction: column;
+    background: #000; position: relative;
+  }
+
+  h1 {
+    font-size: 20px; margin-bottom: 4px;
+    background: linear-gradient(90deg,#4f7cff,#a855f7);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .sub { font-size: 12px; color: #888; margin-bottom: 20px; }
+
+  label { display: block; font-size: 12px; color: #aaa; margin: 12px 0 6px; }
+  textarea, input[type=text], input[type=number], input[type=password], select {
+    width: 100%; background: #1e1e22; border: 1px solid #2e2e32;
+    border-radius: 6px; padding: 10px; color: #e8e8ea; font-size: 13px;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 80px; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+  button {
+    width: 100%; padding: 12px; border: none; border-radius: 8px;
+    background: #2a2a2e; color: #e8e8ea; cursor: pointer;
+    font-size: 14px; font-weight: 500; margin-top: 10px;
+    transition: all .15s;
+  }
+  button:hover { background: #3a3a40; }
+  button.primary {
+    background: linear-gradient(90deg,#4f7cff,#a855f7);
+    font-weight: 600;
+  }
+  button.primary:hover { filter: brightness(1.1); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  .video-wrap {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #000; position: relative;
+  }
+  video { max-width: 100%; max-height: 100%; }
+  .placeholder { color: #555; font-size: 14px; text-align: center; }
+
+  .log {
+    margin-top: 14px; padding: 10px; border-radius: 6px;
+    background: #1e1e22; font-size: 12px; color: #aaa;
+    min-height: 120px; max-height: 200px; overflow-y: auto;
+    white-space: pre-wrap; font-family: ui-monospace, monospace;
+  }
+  .log .ok { color: #6cf; }
+  .log .err { color: #f66; }
+  .log .info { color: #aaa; }
+
+  .device-panel {
+    margin-top: 16px; padding: 12px; background: #1e1e22;
+    border-radius: 8px; font-size: 11px; color: #888;
+  }
+  .device-panel b { color: #e8e8ea; }
+  .device-panel .tier { color: #6cf; font-weight: 600; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+  .tab {
+    flex: 1; padding: 8px; text-align: center; background: #1e1e22;
+    border-radius: 6px; cursor: pointer; font-size: 12px; color: #888;
+    transition: .15s;
+  }
+  .tab.active { background: #2a2a2e; color: #6cf; }
+
+  details { margin-top: 14px; }
+  summary { cursor: pointer; font-size: 12px; color: #6cf; padding: 6px 0; }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    background: #2a2a2e; font-size: 10px; color: #888; margin-left: 6px;
+  }
+
+  .hud {
+    position: absolute; top: 16px; left: 16px;
+    background: rgba(10,10,11,.8); padding: 10px 14px;
+    border-radius: 8px; font-size: 12px; backdrop-filter: blur(8px);
+  }
+  .hud b { color: #6cf; }
+
+  .progress-bar {
+    width: 100%; height: 6px; background: #2e2e32;
+    border-radius: 3px; overflow: hidden; margin-top: 10px;
+  }
+  .progress-bar .fill {
+    height: 100%; background: linear-gradient(90deg,#4f7cff,#a855f7);
+    width: 0%; transition: width .3s;
+  }
+
+  .footer {
+    margin-top: 16px; padding-top: 12px; border-top: 1px solid #2e2e32;
+    font-size: 11px; color: #555; text-align: center;
+  }
+  .footer a { color: #6cf; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h1>AIdownloader</h1>
+  <div class="sub">Генерация и скачивание видео с помощью ИИ</div>
+
+  <label>💬 Промпт (описание видео)</label>
+  <textarea id="prompt" placeholder="Энергичный танец на неоновой сцене, 120 bpm">Энергичный танец на неоновой сцене, 120 bpm</textarea>
+
+  <div class="row">
+    <div>
+      <label>Стиль</label>
+      <select id="style">
+        <option value="hiphop">Хип-хоп</option>
+        <option value="techno">Техно</option>
+        <option value="ballet">Балет</option>
+        <option value="break">Брейк-данс</option>
+        <option value="kpop">K-pop</option>
+      </select>
+    </div>
+    <div>
+      <label>Энергия</label>
+      <select id="energy">
+        <option value="0.6">Низкая</option>
+        <option value="1.0" selected>Средняя</option>
+        <option value="1.6">Высокая</option>
+        <option value="2.2">Безумная</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row3">
+    <div>
+      <label>Длит., с</label>
+      <input type="number" id="duration" value="5" min="1" max="30">
+    </div>
+    <div>
+      <label>Качество</label>
+      <select id="quality">
+        <option value="low">Низкое</option>
+        <option value="medium" selected>Среднее</option>
+        <option value="high">Высокое</option>
+      </select>
+    </div>
+    <div>
+      <label>Разрешение</label>
+      <select id="resolution">
+        <option value="256">256p</option>
+        <option value="512" selected>512p</option>
+        <option value="720">720p</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-mode="local">🖥 Локально</div>
+    <div class="tab" data-mode="backend">🔌 Через бэкенд</div>
+  </div>
+
+  <details id="backendConfig" style="display:none">
+    <summary>🔌 Настройки бэкенда</summary>
+    <label style="margin-top:8px">URL бэкенда</label>
+    <input type="text" id="backendUrl" placeholder="http://localhost:8000" value="http://localhost:8000">
+    <div class="sub" style="margin-top:4px">
+      Запустите бэкенд на ПК: <code>python run.py</code>
+    </div>
+  </details>
+
+  <button class="primary" id="btnGenerate">✨ Сгенерировать видео</button>
+  <button id="btnDownload" disabled>⬇️ Скачать видео</button>
+
+  <div class="progress-bar" id="progressBar" style="display:none">
+    <div class="fill" id="progressFill"></div>
+  </div>
+
+  <div class="device-panel">
+    <div><b>Устройство:</b> <span id="deviceTier" class="tier">определяется…</span></div>
+    <div><b>CPU:</b> <span id="deviceCpu">—</span></div>
+    <div><b>RAM:</b> <span id="deviceRam">—</span></div>
+  </div>
+
+  <div class="log" id="log">Готово. Введите промпт и нажмите «Сгенерировать».</div>
+
+  <div class="footer">
+    AIdownloader · <a href="https://github.com/" target="_blank">GitHub</a>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="video-wrap">
+    <video id="video" controls style="display:none"></video>
+    <div class="placeholder" id="ph">
+      <div style="font-size:48px; margin-bottom:10px;">🎬</div>
+      <div>Здесь появится сгенерированное видео</div>
+    </div>
+  </div>
+  <div class="hud" id="hud" style="display:none">
+    <div>Режим: <b id="hudMode">—</b></div>
+    <div>Статус: <b id="hudStatus">готово</b></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  КОНФИГУРАЦИЯ
+// ============================================================
+const $ = id => document.getElementById(id);
+let mode = 'local'; // local | backend
+
+// ============================================================
+//  ДЕТЕКТОР УСТРОЙСТВА (локальный)
+// ============================================================
+function detectDevice() {
+  const cores = navigator.hardwareConcurrency || 4;
+  const ram = navigator.deviceMemory || 4;
+  let tier = 'MEDIUM';
+  if (cores >= 8 && ram >= 16) tier = 'HIGH';
+  else if (cores >= 4 && ram >= 8) tier = 'MEDIUM';
+  else if (ram >= 4) tier = 'LOW';
+  else tier = 'MINIMAL';
+
+  $('deviceTier').textContent = tier;
+  $('deviceCpu').textContent = `${cores} ядер`;
+  $('deviceRam').textContent = `${ram} GB`;
+  return { cores, ram, tier };
+}
+
+// ============================================================
+//  ЛОКАЛЬНАЯ ГЕНЕРАЦИЯ (процедурная анимация → видео)
+// ============================================================
+async function generateLocal(prompt, style, energy, duration, quality, resolution) {
+  log('🎨 Создаю процедурную анимацию…');
+  setProgress(10);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = parseInt(resolution);
+  canvas.height = parseInt(resolution);
+  const ctx = canvas.getContext('2d');
+
+  const fps = 24;
+  const totalFrames = fps * duration;
+  const frames = [];
+
+  for (let i = 0; i < totalFrames; i++) {
+    const t = i / totalFrames;
+    drawFrame(ctx, canvas.width, canvas.height, t, style, energy, prompt);
+    frames.push(canvas.toDataURL('image/jpeg', 0.8));
+    if (i % 10 === 0) setProgress(10 + (i / totalFrames) * 70);
+  }
+
+  log('🎬 Собираю видео…');
+  setProgress(85);
+
+  const stream = canvas.captureStream(fps);
+  const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+  const chunks = [];
+
+  recorder.ondataavailable = e => chunks.push(e.data);
+
+  recorder.start();
+  let frameIdx = 0;
+  const interval = setInterval(() => {
+    if (frameIdx >= frames.length) {
+      clearInterval(interval);
+      recorder.stop();
+      return;
+    }
+    const img = new Image();
+    img.onload = () => ctx.drawImage(img, 0, 0);
+    img.src = frames[frameIdx];
+    frameIdx++;
+  }, 1000 / fps);
+
+  return new Promise(resolve => {
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      showVideo(url);
+      setProgress(100);
+      log('✅ Видео готово! Нажмите «Скачать видео».', 'ok');
+      resolve(url);
+    };
+  });
+}
+
+function drawFrame(ctx, w, h, t, style, energy, prompt) {
+  const gradient = ctx.createLinearGradient(0, 0, w, h);
+  gradient.addColorStop(0, `hsl(${t * 360}, 70%, 20%)`);
+  gradient.addColorStop(1, `hsl(${t * 360 + 180}, 70%, 10%)`);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const bounce = Math.sin(t * Math.PI * 4) * 20 * energy;
+
+  ctx.fillStyle = '#f5d0a9';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 80 + bounce, 30, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = style === 'hiphop' ? '#4f7cff' : style === 'techno' ? '#a855f7' : '#6cf';
+  ctx.fillRect(cx - 25, cy - 50 + bounce, 50, 80);
+
+  const armAngle = Math.sin(t * Math.PI * 6) * 0.5 * energy;
+  ctx.strokeStyle = ctx.fillStyle;
+  ctx.lineWidth = 12;
+  ctx.lineCap = 'round';
+
+  ctx.beginPath();
+  ctx.moveTo(cx - 25, cy - 30 + bounce);
+  ctx.lineTo(cx - 60 + Math.cos(armAngle) * 30, cy - 10 + bounce + Math.sin(armAngle) * 30);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(cx + 25, cy - 30 + bounce);
+  ctx.lineTo(cx + 60 - Math.cos(armAngle) * 30, cy - 10 + bounce - Math.sin(armAngle) * 30);
+  ctx.stroke();
+
+  const legAngle = Math.sin(t * Math.PI * 4) * 0.3 * energy;
+  ctx.beginPath();
+  ctx.moveTo(cx - 15, cy + 30 + bounce);
+  ctx.lineTo(cx - 25 + Math.sin(legAngle) * 20, cy + 80 + bounce);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(cx + 15, cy + 30 + bounce);
+  ctx.lineTo(cx + 25 - Math.sin(legAngle) * 20, cy + 80 + bounce);
+  ctx.stroke();
+
+  ctx.shadowBlur = 20;
+  ctx.shadowColor = `hsl(${t * 360}, 100%, 50%)`;
+  ctx.strokeStyle = `hsl(${t * 360}, 100%, 50%)`;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(10, 10, w - 20, h - 20);
+  ctx.shadowBlur = 0;
+
+  // Подпись AIdownloader
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('AIdownloader', 16, h - 16);
+}
+
+// ============================================================
+//  ГЕНЕРАЦИЯ ЧЕРЕЗ БЭКЕНД
+// ============================================================
+async function generateBackend(prompt, style, energy, duration, quality, resolution) {
+  const backendUrl = $('backendUrl').value.trim();
+  if (!backendUrl) throw new Error('Укажите URL бэкенда');
+
+  log('🔌 Подключаюсь к бэкенду…');
+  setProgress(10);
+
+  const res = await fetch(`${backendUrl}/generate/adaptive`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt, style, energy, duration,
+      width: parseInt(resolution),
+      height: parseInt(resolution),
+      fps: 8, steps: 25, mode: 'LOCAL'
+    })
+  });
+
+  if (!res.ok) throw new Error(`Бэкенд: ${res.status}`);
+  const { task_id } = await res.json();
+  log(`📋 Задача: ${task_id.slice(0,8)}…`);
+  setProgress(20);
+
+  return new Promise((resolve, reject) => {
+    const wsUrl = backendUrl.replace(/^http/, 'ws') + `/ws/${task_id}`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onmessage = e => {
+      const msg = e.data;
+      if (msg === '__DONE__') {
+        ws.close();
+        fetch(`${backendUrl}/task/${task_id}`)
+          .then(r => r.json())
+          .then(t => {
+            if (t.video) {
+              const videoUrl = backendUrl + t.video;
+              showVideo(videoUrl);
+              setProgress(100);
+              log('✅ Видео готово! Нажмите «Скачать видео».', 'ok');
+              resolve(videoUrl);
+            } else {
+              reject(new Error('Видео не найдено'));
+            }
+          });
+      } else if (msg.startsWith('✅')) {
+        log(msg, 'ok');
+      } else if (msg.startsWith('❌')) {
+        log(msg, 'err');
+        reject(new Error(msg));
+      } else {
+        log(msg);
+      }
+    };
+
+    ws.onerror = () => reject(new Error('WebSocket ошибка'));
+  });
+}
+
+// ============================================================
+//  UI-ХЕЛПЕРЫ
+// ============================================================
+function log(msg, cls = 'info') {
+  const el = $('log');
+  el.innerHTML += `\n<span class="${cls}">${msg}</span>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function setProgress(percent) {
+  $('progressBar').style.display = 'block';
+  $('progressFill').style.width = percent + '%';
+  if (percent >= 100) {
+    setTimeout(() => $('progressBar').style.display = 'none', 2000);
+  }
+}
+
+function showVideo(url) {
+  const v = $('video');
+  v.src = url;
+  v.style.display = 'block';
+  $('ph').style.display = 'none';
+  $('btnDownload').disabled = false;
+  $('btnDownload').onclick = () => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aidownloader_${Date.now()}.webm`;
+    a.click();
+    log('⬇️ Скачивание начато', 'ok');
+  };
+}
+
+// ============================================================
+//  ОБРАБОТЧИКИ
+// ============================================================
+document.querySelectorAll('.tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    mode = t.dataset.mode;
+    $('backendConfig').style.display = mode === 'backend' ? 'block' : 'none';
+  };
+});
+
+$('btnGenerate').onclick = async () => {
+  const btn = $('btnGenerate');
+  btn.disabled = true;
+  $('log').innerHTML = '';
+  $('hud').style.display = 'block';
+  $('hudMode').textContent = mode === 'local' ? 'Локально' : 'Бэкенд';
+  $('hudStatus').textContent = 'генерация…';
+
+  const prompt = $('prompt').value;
+  const style = $('style').value;
+  const energy = parseFloat($('energy').value);
+  const duration = parseInt($('duration').value);
+  const quality = $('quality').value;
+  const resolution = $('resolution').value;
+
+  try {
+    if (mode === 'local') {
+      await generateLocal(prompt, style, energy, duration, quality, resolution);
+    } else {
+      await generateBackend(prompt, style, energy, duration, quality, resolution);
+    }
+    $('hudStatus').textContent = 'готово';
+  } catch (e) {
+    log('❌ ' + e.message, 'err');
+    $('hudStatus').textContent = 'ошибка';
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+// ============================================================
+//  ИНИЦИАЛИЗАЦИЯ
+// ============================================================
+detectDevice();
+log('👋 AIdownloader загружен', 'ok');
+log(`📱 Режим: ${mode === 'local' ? 'локальная генерация' : 'через бэкенд'}`);
+</script>
+</body>
+</html>
