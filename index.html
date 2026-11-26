@@ -52,8 +52,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:20p
 .progress-bar{width:100%;max-width:400px;height:6px;background:#1e1e22;border-radius:3px;overflow:hidden;margin:12px auto 0}
 .progress-bar .fill{height:100%;background:var(--grad);width:0%;transition:width .3s}
 .partner-box{text-align:center;margin-top:30px;padding:20px;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border)}
-footer{text-align:center;padding:30px 20px;color:#555;font-size:12px;border-top:1px solid var(--border);margin-top:auto}
+footer{text-align:center;padding:30px 20px;color:#555;font-size:12px;border-top:1px solid var(--border);margin-top:auto;position:relative;z-index:1}
 footer a{color:var(--accent1);text-decoration:none}
+footer a:hover{text-decoration:underline}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
 .modal-overlay.active{display:flex}
 .modal{background:#101014;border:1px solid var(--border-strong);border-radius:22px;padding:30px;max-width:480px;width:90%}
@@ -127,7 +128,13 @@ footer a{color:var(--accent1);text-decoration:none}
 
 <footer>
   <div>⚡ AIdownloader · Работает на Replicate</div>
-  <div style="margin-top:6px"><a href="#" onclick="alert('Мы не собираем личные данные.');return false;">Политика конфиденциальности</a> · <a href="mailto:support@aidownloader.app">Контакты</a></div>
+  <nav aria-label="Юридическая информация" style="margin-top:10px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+    <a href="/requisites.html">Реквизиты</a>
+    <a href="/offer.html">Публичная оферта</a>
+    <a href="/refund.html">Возврат</a>
+    <a href="/privacy.html">Политика конфиденциальности</a>
+    <a href="mailto:support@aidownloader.app">Контакты</a>
+  </nav>
 </footer>
 
 <script>
