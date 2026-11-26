@@ -3,139 +3,68 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AIdownloader — Генерация HD видео по тексту</title>
-<meta name="description" content="Бесплатная генерация реалистичных HD-видео по текстовому описанию с помощью ИИ.">
+<title>AIdownloader — HD видео по тексту</title>
+<meta name="description" content="Генерация HD-видео по описанию с помощью ИИ.">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <style>
-  :root {
-    --bg: #08080a;
-    --surface: rgba(20, 20, 24, 0.72);
-    --border: rgba(255, 255, 255, 0.08);
-    --border-strong: rgba(255, 255, 255, 0.14);
-    --text: #ededf2;
-    --muted: #8a8a96;
-    --accent1: #22d3ee;
-    --accent2: #a855f7;
-    --grad: linear-gradient(120deg, #22d3ee, #a855f7 55%, #ec4899);
-    --red: #f87171;
-    --radius: 18px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
-  body {
-    font-family: -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
-    background: var(--bg); color: var(--text);
-    min-height: 100vh; display: flex; flex-direction: column;
-    -webkit-font-smoothing: antialiased;
-  }
-  body::before {
-    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background: radial-gradient(600px 400px at 15% 0%, rgba(34,211,238,0.10), transparent 60%),
-                radial-gradient(700px 500px at 90% 10%, rgba(168,85,247,0.12), transparent 60%);
-  }
-  .container {
-    max-width: 1100px; margin: 0 auto; padding: 0 20px 40px;
-    flex: 1; width: 100%; position: relative; z-index: 1;
-  }
-
-  header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 20px 0; margin-bottom: 20px;
-  }
-  .logo {
-    font-size: 24px; font-weight: 800; letter-spacing: -0.5px;
-    background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  }
-  
-  .btn {
-    padding: 12px 20px; border: none; border-radius: 12px;
-    font-size: 14px; font-weight: 600; cursor: pointer;
-    transition: transform 0.12s, filter 0.15s; white-space: nowrap;
-    display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
-  }
-  .btn:active { transform: scale(0.97); }
-  .btn-primary {
-    background: var(--grad); color: #fff;
-    box-shadow: 0 6px 22px -8px rgba(168, 85, 247, 0.7);
-  }
-  .btn-primary:hover { filter: brightness(1.1); }
-  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
-  .btn-donate {
-    background: rgba(245, 158, 11, 0.15); color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.3);
-  }
-  .btn-donate:hover { background: rgba(245, 158, 11, 0.25); }
-
-  .hero { text-align: center; margin: 30px 0; }
-  .hero h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 800; margin-bottom: 12px; }
-  .hero p { color: var(--muted); font-size: 15px; max-width: 600px; margin: 0 auto; line-height: 1.5; }
-
-  .search-box {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 20px;
-    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-    margin-bottom: 20px;
-  }
-  .search-row { display: flex; gap: 10px; flex-wrap: wrap; }
-  .search-input {
-    flex: 1; min-width: 250px; background: rgba(0, 0, 0, 0.35);
-    border: 1px solid var(--border-strong); border-radius: 12px;
-    padding: 14px 16px; color: var(--text); font-size: 15px;
-    outline: none; transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .search-input:focus {
-    border-color: var(--accent1);
-    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.15);
-  }
-  .search-input::placeholder { color: #55555f; }
-
-  .ad-slot {
-    width: 100%; min-height: 100px; margin: 24px 0; border-radius: var(--radius);
-    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02) 10px, rgba(255,255,255,0.04) 10px, rgba(255,255,255,0.04) 20px);
-    border: 1px dashed var(--border-strong);
-    display: grid; place-items: center; color: #555; font-size: 13px; text-align: center; padding: 10px;
-  }
-
-  .status { text-align: center; padding: 16px; color: var(--muted); font-size: 14px; }
-  .status.error { color: var(--red); }
-  .status.success { color: var(--accent1); }
-
-  .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 16px; }
-  .card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); overflow: hidden;
-    animation: fadeIn 0.4s ease both;
-  }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-  .card video { width: 100%; aspect-ratio: 16/9; background: #000; display: block; object-fit: cover; }
-  .card-body { padding: 14px; }
-  .card-title { font-size: 14px; margin-bottom: 8px; line-height: 1.4; color: var(--text); }
-  .card-meta { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-  .src-badge {
-    font-size: 11px; color: var(--accent1); background: rgba(34, 211, 238, 0.1);
-    padding: 4px 10px; border-radius: 6px; font-weight: 600; text-decoration: none;
-  }
-  .src-badge:hover { background: rgba(34, 211, 238, 0.2); }
-
-  .loader {
-    display: inline-block; width: 16px; height: 16px;
-    border: 2px solid var(--accent1); border-top-color: transparent;
-    border-radius: 50%; animation: spin 0.8s linear infinite;
-    vertical-align: middle; margin-right: 6px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .partner-box {
-    text-align: center; margin-top: 30px; padding: 20px;
-    background: var(--surface); border-radius: var(--radius);
-    border: 1px solid var(--border);
-  }
-
-  footer {
-    text-align: center; padding: 30px 20px; color: #555;
-    font-size: 12px; border-top: 1px solid var(--border); margin-top: auto;
-  }
-  footer a { color: var(--accent1); text-decoration: none; }
-  footer a:hover { text-decoration: underline; }
+  :root{--bg:#08080a;--surface:rgba(20,20,24,.72);--border:rgba(255,255,255,.08);--border-strong:rgba(255,255,255,.14);--text:#ededf2;--muted:#8a8a96;--accent1:#22d3ee;--accent2:#a855f7;--grad:linear-gradient(120deg,#22d3ee,#a855f7 55%,#ec4899);--red:#f87171;--radius:18px}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"Segoe UI",Inter,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+  body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(600px 400px at 15% 0%,rgba(34,211,238,.10),transparent 60%),radial-gradient(700px 500px at 90% 10%,rgba(168,85,247,.12),transparent 60%)}
+  .container{max-width:1100px;margin:0 auto;padding:0 20px 40px;flex:1;width:100%;position:relative;z-index:1}
+  header{display:flex;align-items:center;justify-content:space-between;padding:20px 0;margin-bottom:20px;gap:10px;flex-wrap:wrap}
+  .logo{font-size:24px;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .btn{padding:12px 20px;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;transition:transform .12s,filter .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:var(--grad);color:#fff;box-shadow:0 6px 22px -8px rgba(168,85,247,.7)}
+  .btn-primary:hover{filter:brightness(1.1)}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed}
+  .btn-donate{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+  .hero{text-align:center;margin:30px 0}
+  .hero h1{font-size:clamp(28px,5vw,40px);font-weight:800;margin-bottom:12px}
+  .hero p{color:var(--muted);font-size:15px;max-width:600px;margin:0 auto;line-height:1.5}
+  .tabs{display:flex;gap:6px;justify-content:center;margin-bottom:20px;flex-wrap:wrap}
+  .tab{padding:10px 20px;border-radius:999px;cursor:pointer;font-size:14px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--border);transition:all .18s}
+  .tab:hover{color:var(--text);border-color:var(--border-strong)}
+  .tab.active{color:#fff;background:var(--grad);border-color:transparent;box-shadow:0 6px 20px -8px rgba(168,85,247,.6)}
+  .search-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;backdrop-filter:blur(16px);margin-bottom:20px}
+  .search-row{display:flex;gap:10px;flex-wrap:wrap}
+  .search-input{flex:1;min-width:250px;background:rgba(0,0,0,.35);border:1px solid var(--border-strong);border-radius:12px;padding:14px 16px;color:var(--text);font-size:15px;outline:none}
+  .search-input:focus{border-color:var(--accent1);box-shadow:0 0 0 3px rgba(34,211,238,.15)}
+  .search-input::placeholder{color:#55555f}
+  .ad-slot{width:100%;min-height:100px;margin:24px 0;border-radius:var(--radius);background:repeating-linear-gradient(45deg,rgba(255,255,255,.02),rgba(255,255,255,.02) 10px,rgba(255,255,255,.04) 10px,rgba(255,255,255,.04) 20px);border:1px dashed var(--border-strong);display:grid;place-items:center;color:#555;font-size:13px;text-align:center;padding:10px}
+  .status{text-align:center;padding:16px;color:var(--muted);font-size:14px}
+  .status.error{color:var(--red)}
+  .status.success{color:var(--accent1)}
+  .results{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:16px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;animation:fadeIn .4s ease both}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  .card video,.card img{width:100%;aspect-ratio:16/9;background:#000;display:block;object-fit:cover}
+  .card-body{padding:14px}
+  .card-title{font-size:14px;margin-bottom:8px;line-height:1.4;color:var(--text)}
+  .card-meta{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+  .src-badge{font-size:11px;color:var(--accent1);background:rgba(34,211,238,.1);padding:4px 10px;border-radius:6px;font-weight:600;text-decoration:none}
+  .src-badge:hover{background:rgba(34,211,238,.2)}
+  .loader{display:inline-block;width:16px;height:16px;border:2px solid var(--accent1);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .progress-bar{width:100%;max-width:400px;height:6px;background:#1e1e22;border-radius:3px;overflow:hidden;margin:12px auto 0}
+  .progress-bar .fill{height:100%;background:var(--grad);width:0%;transition:width .3s}
+  .partner-box{text-align:center;margin-top:30px;padding:20px;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border)}
+  footer{text-align:center;padding:30px 20px;color:#555;font-size:12px;border-top:1px solid var(--border);margin-top:auto}
+  footer a{color:var(--accent1);text-decoration:none}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+  .modal-overlay.active{display:flex}
+  .modal{background:#101014;border:1px solid var(--border-strong);border-radius:22px;padding:30px;max-width:480px;width:90%}
+  .modal h2{font-size:22px;margin-bottom:14px}
+  .modal p{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:12px}
+  .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--muted);font-size:28px;cursor:pointer}
+  .auth-buttons{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+  .auth-btn{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;background:rgba(255,255,255,.04);border:1px solid var(--border-strong);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
+  .auth-btn:hover{background:rgba(255,255,255,.08)}
+  .auth-btn img{width:20px;height:20px}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#101014;border:1px solid var(--border-strong);color:var(--text);padding:12px 22px;border-radius:999px;font-size:14px;z-index:2000;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
@@ -143,129 +72,285 @@
 <div class="container">
   <header>
     <div class="logo">⚡ AIdownloader</div>
-    <!-- Кнопка доната (замените ссылку на вашу Boosty/Patreon) -->
-    <a href="https://boosty.to/ваш_ник" target="_blank" class="btn btn-donate">☕ Поддержать</a>
+    <div id="authSection"></div>
   </header>
 
   <section class="hero">
     <h1>Генерация <span style="background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent">HD Видео</span> по тексту</h1>
-    <p>Опишите сцену, и нейросеть Minimax создаст реалистичное видео. Быстро, бесплатно и без водяных знаков.</p>
+    <p>Опишите сцену — нейросеть создаст реалистичное видео. Бесплатно и без водяных знаков.</p>
   </section>
 
-  <div class="search-box">
+  <div class="tabs">
+    <div class="tab active" data-mode="ai">🤖 ИИ-генерация</div>
+    <div class="tab" data-mode="search">🔍 Поиск видео</div>
+  </div>
+
+  <!-- ИИ-генерация -->
+  <div class="search-box" id="aiBox">
     <div class="search-row">
-      <input type="text" class="search-input" id="prompt" 
-             placeholder="Например: a woman walking through a busy Tokyo street at night, cinematic lighting, 4k">
+      <input type="text" class="search-input" id="aiPrompt" placeholder="Например: a woman walking through Tokyo at night, cinematic lighting">
       <button class="btn btn-primary" id="btnGenerate">🎬 Сгенерировать</button>
     </div>
-    <div style="font-size:12px; color:var(--muted); margin-top:10px; text-align:right">
-      💡 Совет: пишите промпты на английском для наилучшего качества.
+    <div style="font-size:12px;color:var(--muted);margin-top:10px;text-align:right">💡 Пишите на английском для лучшего качества</div>
+    <div class="progress-bar" id="progressBar" style="display:none"><div class="fill" id="progressFill"></div></div>
+  </div>
+
+  <!-- Поиск видео -->
+  <div class="search-box" id="searchBox" style="display:none">
+    <div class="search-row">
+      <input type="text" class="search-input" id="searchPrompt" placeholder="Введите название для поиска">
+      <button class="btn btn-primary" id="btnSearch">🔍 Найти</button>
     </div>
   </div>
 
-  <!-- МЕСТО ДЛЯ РЕКЛАМЫ ADSENSE / РСЯ -->
-  <!-- Замените этот div на код, который выдаст Google AdSense после одобрения -->
-  <div class="ad-slot">
-    Рекламный блок (AdSense / РСЯ)<br>
-    <small>Вставьте сюда код рекламного блока</small>
+  <div class="ad-slot" id="adTop">
+    Рекламный блок (AdSense / РСЯ)<br><small>Вставьте сюда код после одобрения</small>
   </div>
 
-  <div class="status" id="status">Введите описание на английском и нажмите «Сгенерировать»</div>
+  <div class="status" id="status">Войдите, чтобы начать генерацию</div>
   <div class="results" id="results"></div>
 
-  <!-- Партнерский блок для пассивного дохода -->
   <div class="partner-box">
-    <p style="font-size:14px; color:var(--muted); margin-bottom:12px">
-      Нужен свой API ключ для бизнеса или безлимитных генераций?
-    </p>
-    <!-- Замените ссылку ниже на вашу реферальную ссылку Replicate -->
-    <a href="https://replicate.com?utm_source=aidownloader" target="_blank" class="btn btn-primary" style="text-decoration:none">
-      🚀 Получить ключ Replicate (Партнерская ссылка)
-    </a>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:12px">Нужен свой API ключ для бизнеса?</p>
+    <a href="https://replicate.com?utm_source=aidownloader" target="_blank" class="btn btn-primary" style="text-decoration:none">🚀 Получить ключ Replicate</a>
   </div>
 </div>
 
-<footer>
-  <div>⚡ AIdownloader · Работает на Replicate (Minimax Video-01)</div>
-  <div style="margin-top:6px">
-    <a href="#" onclick="alert('Политика конфиденциальности: Мы не собираем личные данные. Запросы обрабатываются анонимно через защищенный сервер.'); return false;">Политика конфиденциальности</a> · 
-    <a href="mailto:support@aidownloader.app">Контакты</a>
+<!-- Модалка входа -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal" style="position:relative">
+    <button class="modal-close" onclick="closeAuthModal()">&times;</button>
+    <h2>🔒 Войдите в аккаунт</h2>
+    <p>Для доступа к генерации необходима авторизация.</p>
+    <div class="auth-buttons">
+      <button class="auth-btn" onclick="signInWithGoogle()"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"> Продолжить с Google</button>
+    </div>
   </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>
+  <div>⚡ AIdownloader · Работает на Replicate</div>
+  <div style="margin-top:6px"><a href="#" onclick="alert('Мы не собираем личные данные.');return false;">Политика конфиденциальности</a> · <a href="mailto:support@aidownloader.app">Контакты</a></div>
 </footer>
 
 <script>
 // ================= КОНФИГУРАЦИЯ =================
-// Ваш защищенный Cloudflare Worker
-const API_URL = 'https://aidownloader-api.kisa302de.workers.dev/';
-
+const API_URL = 'https://jolly-star-ed25.kisa302de.workers.dev';
+const PIXABAY_API_KEY = '58836245-0c367cdb8ea315a0e93821391';
 const $ = id => document.getElementById(id);
 
-// ================= ЛОГИКА ГЕНЕРАЦИИ =================
-$('btnGenerate').onclick = async () => {
-  const prompt = $('prompt').value.trim();
-  
-  // Валидация
-  if (!prompt) {
-    $('status').textContent = '❌ Пожалуйста, введите описание видео';
-    $('status').className = 'status error';
-    return;
-  }
+const firebaseConfig = {
+  apiKey: "AIzaSyDe_jIik5f7yztfPfZMTUs7d9L_pjELOZQ",
+  authDomain: "aidownloader-aced8.firebaseapp.com",
+  projectId: "aidownloader-aced8",
+  storageBucket: "aidownloader-aced8.firebasestorage.app",
+  messagingSenderId: "291242124515",
+  appId: "1:291242124515:web:36a6f7d935b9d532a151d6"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
 
-  // Блокируем интерфейс на время генерации
+let currentUser = null;
+let pollTimer = null;
+let currentMode = 'ai';
+
+// ================= АВТОРИЗАЦИЯ =================
+auth.onAuthStateChanged(user => {
+  currentUser = user;
+  updateAuthUI();
+});
+
+function updateAuthUI() {
+  const s = $('authSection');
+  if (currentUser) {
+    const name = currentUser.displayName || currentUser.email.split('@')[0];
+    const avatar = currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=a855f7&color=fff`;
+    s.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px">
+        <img src="${avatar}" style="width:32px;height:32px;border-radius:50%">
+        <span style="font-size:13px;color:var(--muted)">${name}</span>
+      </div>
+      <button class="btn" style="background:var(--surface);color:var(--text);border:1px solid var(--border-strong)" onclick="signOut()">Выйти</button>`;
+    setStatus('✅ Вы вошли. Введите описание и нажмите «Сгенерировать»');
+  } else {
+    s.innerHTML = `<button class="btn btn-primary" onclick="openAuthModal()">Войти</button>`;
+    setStatus('🔒 Войдите, чтобы начать генерацию');
+  }
+}
+
+function openAuthModal() { $('authModal').classList.add('active'); }
+function closeAuthModal() { $('authModal').classList.remove('active'); }
+async function signInWithGoogle() {
+  try {
+    await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    closeAuthModal();
+    toast('✅ Вы вошли');
+  } catch (e) {
+    toast('❌ ' + e.message);
+  }
+}
+function signOut() { auth.signOut(); toast('Вы вышли'); }
+function requireAuth() {
+  if (!currentUser) { openAuthModal(); toast('🔒 Сначала войдите'); return false; }
+  return true;
+}
+
+// ================= ВКЛАДКИ =================
+document.querySelectorAll('.tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    currentMode = t.dataset.mode;
+    $('aiBox').style.display = currentMode === 'ai' ? 'block' : 'none';
+    $('searchBox').style.display = currentMode === 'search' ? 'block' : 'none';
+    $('results').innerHTML = '';
+    setStatus(currentMode === 'ai' ? 'Введите описание и нажмите «Сгенерировать»' : 'Введите название для поиска');
+  };
+});
+
+// ================= ИИ-ГЕНЕРАЦИЯ ЧЕРЕЗ WORKER =================
+function setProgress(pct) {
+  $('progressBar').style.display = pct > 0 ? 'block' : 'none';
+  $('progressFill').style.width = pct + '%';
+}
+
+$('btnGenerate').onclick = async () => {
+  const prompt = $('aiPrompt').value.trim();
+  if (!prompt) { setStatus('❌ Введите описание'); setStatusClass('error'); return; }
+  if (!requireAuth()) return;
+
   $('btnGenerate').disabled = true;
-  $('status').innerHTML = '<span class="loader"></span> Нейросеть создает видео (это займет 30-60 секунд)...';
-  $('status').className = 'status';
   $('results').innerHTML = '';
+  setStatus('<span class="loader"></span> Отправляем запрос в нейросеть…');
+  setStatusClass('');
+  setProgress(5);
 
   try {
-    // Запрос к вашему безопасному бэкенду
-    const response = await fetch(API_URL, {
+    const r = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt })
+      body: JSON.stringify({ prompt })
     });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Ошибка сервера');
 
-    const data = await response.json();
+    setStatus('<span class="loader"></span> Нейросеть генерирует видео…');
+    setProgress(20);
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Неизвестная ошибка сервера');
-    }
+    let elapsed = 0;
+    clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        const s = await fetch(`${API_URL}/status?id=${encodeURIComponent(data.id)}`).then(r => r.json());
+        elapsed += 3;
+        setProgress(Math.min(20 + elapsed * 1.5, 95));
+        setStatus(`<span class="loader"></span> Генерация… ${elapsed} сек.`);
 
-    // Успех! Отображаем результат
-    $('status').innerHTML = '✅ Видео успешно сгенерировано!';
-    $('status').className = 'status success';
+        if (s.status === 'succeeded' && s.videoUrl) {
+          clearInterval(pollTimer);
+          setProgress(100);
+          setStatus('✅ Видео готово!');
+          setStatusClass('success');
+          showVideo(s.videoUrl, prompt);
+          setTimeout(() => setProgress(0), 1500);
+        } else if (s.status === 'failed' || s.status === 'canceled') {
+          clearInterval(pollTimer);
+          setProgress(0);
+          setStatus('❌ ' + (s.error || 'Генерация не удалась. Попробуйте другой промпт.'));
+          setStatusClass('error');
+        }
+      } catch (e) {
+        clearInterval(pollTimer);
+        setProgress(0);
+        setStatus('❌ Потеря связи с сервером');
+        setStatusClass('error');
+      }
+    }, 3000);
 
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <video src="${data.videoUrl}" controls autoplay loop muted playsinline poster="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3ZxeXd5Z3ZxeXd5Z3ZxeXd5Z3ZxeXd5Z3ZxeXd5Z3ZxeXd5ZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKSjRrfIPjeiVyM/giphy.gif"></video>
-      <div class="card-body">
-        <div class="card-title">${prompt}</div>
-        <div class="card-meta">
-          <span>Minimax Video-01 · HD</span>
-          <a href="${data.videoUrl}" download="aidownloader_video.mp4" class="src-badge" target="_blank">⬇ Скачать MP4</a>
-        </div>
-      </div>
-    `;
-    $('results').appendChild(card);
+    setTimeout(() => {
+      if (pollTimer) { clearInterval(pollTimer); setProgress(0); setStatus('❌ Таймаут. Повторите.'); setStatusClass('error'); $('btnGenerate').disabled = false; }
+    }, 300000);
 
-  } catch (error) {
-    console.error('Generation error:', error);
-    $('status').innerHTML = `❌ Ошибка: ${error.message}. Попробуйте изменить промпт или повторите позже.`;
-    $('status').className = 'status error';
-  } finally {
-    // Разблокируем интерфейс
+  } catch (e) {
+    setStatus('❌ ' + e.message);
+    setStatusClass('error');
+    setProgress(0);
     $('btnGenerate').disabled = false;
   }
 };
 
-// Генерация по нажатию Enter
-$('prompt').addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    $('btnGenerate').click();
+function showVideo(url, prompt) {
+  $('btnGenerate').disabled = false;
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <video src="${url}" controls autoplay loop muted playsinline></video>
+    <div class="card-body">
+      <div class="card-title">${prompt}</div>
+      <div class="card-meta">
+        <span>HD · AI Generated</span>
+        <a href="${url}" download="aidownloader_video.mp4" class="src-badge" target="_blank" rel="noopener">⬇ Скачать MP4</a>
+      </div>
+    </div>`;
+  $('results').prepend(card);
+}
+
+// ================= ПОИСК ВИДЕО (Pixabay) =================
+$('btnSearch').onclick = async () => {
+  const prompt = $('searchPrompt').value.trim();
+  if (!prompt) { setStatus('❌ Введите название'); setStatusClass('error'); return; }
+  if (!requireAuth()) return;
+
+  $('btnSearch').disabled = true;
+  $('results').innerHTML = '';
+  setStatus('<span class="loader"></span> Ищем видео…');
+  setStatusClass('');
+
+  try {
+    const r = await fetch(`https://pixabay.com/api/videos/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(prompt)}&per_page=12`);
+    const data = await r.json();
+    if (!r.ok) throw new Error('Ошибка Pixabay');
+    if (data.total === 0) { setStatus('Ничего не найдено'); setStatusClass('error'); return; }
+
+    setStatus(`✅ Найдено: ${data.total}`);
+    setStatusClass('success');
+
+    data.hits.forEach(v => {
+      const file = v.videos.medium || v.videos.large || v.videos.small;
+      if (!file) return;
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <video src="${file.url}" controls muted preload="metadata" playsinline></video>
+        <div class="card-body">
+          <div class="card-title">${v.tags || 'Видео'}</div>
+          <div class="card-meta">
+            <span>${file.width}×${file.height}</span>
+            <a href="${file.url}" download="video_${v.id}.mp4" class="src-badge" target="_blank">⬇ Скачать</a>
+          </div>
+        </div>`;
+      $('results').appendChild(card);
+    });
+  } catch (e) {
+    setStatus('❌ ' + e.message);
+    setStatusClass('error');
+  } finally {
+    $('btnSearch').disabled = false;
   }
-});
+};
+
+// ================= УТИЛИТЫ =================
+function setStatus(msg) { $('status').innerHTML = msg; }
+function setStatusClass(cls) { $('status').className = 'status ' + (cls || ''); }
+let toastTimer;
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2400); }
+
+$('aiPrompt').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnGenerate').click(); });
+$('searchPrompt').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnSearch').click(); });
+
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); }));
 </script>
 
 </body>
