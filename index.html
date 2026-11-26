@@ -3,509 +3,473 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AIdownloader — генерация и скачивание видео с помощью ИИ</title>
+<title>AIdownloader — поиск и скачивание бесплатных видео</title>
+<meta name="description" content="Находите и скачивайте бесплатные HD-видео по описанию.">
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
     background: #0a0a0b; color: #e8e8ea;
-    display: grid; grid-template-columns: 380px 1fr;
-    height: 100vh; overflow: hidden;
+    min-height: 100vh; display: flex; flex-direction: column;
   }
-  @media (max-width: 768px) {
-    body { grid-template-columns: 1fr; }
-    .sidebar { max-height: 50vh; }
-  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; flex: 1; }
 
-  .sidebar {
-    background: #141416; border-right: 1px solid #2a2a2e;
-    padding: 20px; overflow-y: auto;
-  }
-  .stage {
-    display: flex; flex-direction: column;
-    background: #000; position: relative;
-  }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+  .logo { font-size: 24px; font-weight: 700; background: linear-gradient(90deg,#4f7cff,#a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  
+  .auth-section { display: flex; align-items: center; gap: 12px; }
+  .user-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #aaa; }
+  .user-avatar { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #4f7cff; }
+  
+  .btn { padding: 10px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .btn-primary { background: linear-gradient(90deg,#4f7cff,#a855f7); color: white; }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-outline { background: transparent; border: 1px solid #2e2e32; color: #e8e8ea; }
+  .btn-outline:hover { background: #1e1e22; }
 
-  h1 {
-    font-size: 20px; margin-bottom: 4px;
-    background: linear-gradient(90deg,#4f7cff,#a855f7);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  }
-  .sub { font-size: 12px; color: #888; margin-bottom: 20px; }
+  .hero { text-align: center; margin-bottom: 28px; }
+  .hero h1 { font-size: 28px; margin-bottom: 12px; background: linear-gradient(90deg,#4f7cff,#a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero p { color: #888; font-size: 15px; max-width: 600px; margin: 0 auto; }
 
-  label { display: block; font-size: 12px; color: #aaa; margin: 12px 0 6px; }
-  textarea, input[type=text], input[type=number], input[type=password], select {
-    width: 100%; background: #1e1e22; border: 1px solid #2e2e32;
-    border-radius: 6px; padding: 10px; color: #e8e8ea; font-size: 13px;
-    font-family: inherit;
-  }
-  textarea { resize: vertical; min-height: 80px; }
+  .search-box { background: #141416; border: 1px solid #2a2a2e; border-radius: 16px; padding: 20px; margin-bottom: 24px; }
+  .search-row { display: flex; gap: 10px; }
+  @media (max-width: 600px) { .search-row { flex-direction: column; } }
 
-  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .search-input { flex: 1; background: #1e1e22; border: 1px solid #2e2e32; border-radius: 10px; padding: 14px 16px; color: #e8e8ea; font-size: 15px; outline: none; }
+  .search-input:focus { border-color: #4f7cff; }
 
-  button {
-    width: 100%; padding: 12px; border: none; border-radius: 8px;
-    background: #2a2a2e; color: #e8e8ea; cursor: pointer;
-    font-size: 14px; font-weight: 500; margin-top: 10px;
-    transition: all .15s;
-  }
-  button:hover { background: #3a3a40; }
-  button.primary {
-    background: linear-gradient(90deg,#4f7cff,#a855f7);
-    font-weight: 600;
-  }
-  button.primary:hover { filter: brightness(1.1); }
-  button:disabled { opacity: .5; cursor: not-allowed; }
+  .translate-hint { font-size: 12px; color: #555; margin-top: 10px; text-align: right; }
+  .translate-hint b { color: #6cf; }
 
-  .video-wrap {
-    flex: 1; display: flex; align-items: center; justify-content: center;
-    background: #000; position: relative;
-  }
-  video { max-width: 100%; max-height: 100%; }
-  .placeholder { color: #555; font-size: 14px; text-align: center; }
+  .status { text-align: center; padding: 16px; color: #888; font-size: 14px; }
+  .status.error { color: #f66; }
+  .status.success { color: #6cf; }
 
-  .log {
-    margin-top: 14px; padding: 10px; border-radius: 6px;
-    background: #1e1e22; font-size: 12px; color: #aaa;
-    min-height: 120px; max-height: 200px; overflow-y: auto;
-    white-space: pre-wrap; font-family: ui-monospace, monospace;
-  }
-  .log .ok { color: #6cf; }
-  .log .err { color: #f66; }
-  .log .info { color: #aaa; }
+  .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 20px; }
+  .card { background: #141416; border: 1px solid #2a2a2e; border-radius: 12px; overflow: hidden; transition: transform .15s; }
+  .card:hover { transform: translateY(-2px); border-color: #4f7cff; }
+  .card video { width: 100%; aspect-ratio: 16/9; background: #000; display: block; }
+  .card-body { padding: 12px; }
+  .card-title { font-size: 13px; color: #e8e8ea; margin-bottom: 4px; }
+  .card-meta { font-size: 11px; color: #888; margin-bottom: 10px; display: flex; justify-content: space-between; }
+  .pixabay-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #11a86b; font-weight: 600; }
 
-  .device-panel {
-    margin-top: 16px; padding: 12px; background: #1e1e22;
-    border-radius: 8px; font-size: 11px; color: #888;
-  }
-  .device-panel b { color: #e8e8ea; }
-  .device-panel .tier { color: #6cf; font-weight: 600; }
+  .btn-download { width: 100%; padding: 10px; background: #2a2a2e; color: #e8e8ea; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
+  .btn-download:hover { background: #3a3a40; }
 
-  .tabs { display: flex; gap: 4px; margin-bottom: 10px; }
-  .tab {
-    flex: 1; padding: 8px; text-align: center; background: #1e1e22;
-    border-radius: 6px; cursor: pointer; font-size: 12px; color: #888;
-    transition: .15s;
-  }
-  .tab.active { background: #2a2a2e; color: #6cf; }
+  .loader { display: inline-block; width: 16px; height: 16px; border: 2px solid #4f7cff; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-  details { margin-top: 14px; }
-  summary { cursor: pointer; font-size: 12px; color: #6cf; padding: 6px 0; }
+  .pixabay-attribution {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 14px; margin: 20px 0;
+    background: #141416; border: 1px solid #2a2a2e;
+    border-radius: 10px; font-size: 13px; color: #aaa;
+  }
+  .pixabay-logo { display: inline-flex; align-items: center; gap: 6px; color: #11a86b; font-weight: 700; text-decoration: none; }
+  .pixabay-logo svg { width: 20px; height: 20px; }
 
-  .badge {
-    display: inline-block; padding: 2px 8px; border-radius: 10px;
-    background: #2a2a2e; font-size: 10px; color: #888; margin-left: 6px;
+  /* Модальное окно */
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8); z-index: 1000;
+    align-items: center; justify-content: center;
   }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: #141416; border: 1px solid #2a2a2e;
+    border-radius: 16px; padding: 32px; max-width: 500px; width: 90%;
+    max-height: 80vh; overflow-y: auto;
+  }
+  .modal h2 { font-size: 20px; margin-bottom: 16px; color: #e8e8ea; }
+  .modal p { font-size: 14px; color: #aaa; line-height: 1.6; margin-bottom: 12px; }
+  .modal-close { float: right; background: none; border: none; color: #888; font-size: 24px; cursor: pointer; }
 
-  .hud {
-    position: absolute; top: 16px; left: 16px;
-    background: rgba(10,10,11,.8); padding: 10px 14px;
-    border-radius: 8px; font-size: 12px; backdrop-filter: blur(8px);
+  .auth-buttons { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+  .auth-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 12px; background: #1e1e22; border: 1px solid #2e2e32;
+    border-radius: 8px; color: #e8e8ea; font-size: 14px; cursor: pointer;
+    transition: background .15s;
   }
-  .hud b { color: #6cf; }
+  .auth-btn:hover { background: #2a2a2e; }
+  .auth-btn img { width: 20px; height: 20px; }
 
-  .progress-bar {
-    width: 100%; height: 6px; background: #2e2e32;
-    border-radius: 3px; overflow: hidden; margin-top: 10px;
-  }
-  .progress-bar .fill {
-    height: 100%; background: linear-gradient(90deg,#4f7cff,#a855f7);
-    width: 0%; transition: width .3s;
-  }
-
-  .footer {
-    margin-top: 16px; padding-top: 12px; border-top: 1px solid #2e2e32;
-    font-size: 11px; color: #555; text-align: center;
-  }
-  .footer a { color: #6cf; text-decoration: none; }
+  footer { text-align: center; padding: 24px 20px; color: #555; font-size: 12px; border-top: 1px solid #1e1e22; margin-top: auto; }
+  footer a { color: #6cf; text-decoration: none; cursor: pointer; }
 </style>
 </head>
 <body>
 
-<div class="sidebar">
-  <h1>AIdownloader</h1>
-  <div class="sub">Генерация и скачивание видео с помощью ИИ</div>
-
-  <label>💬 Промпт (описание видео)</label>
-  <textarea id="prompt" placeholder="Энергичный танец на неоновой сцене, 120 bpm">Энергичный танец на неоновой сцене, 120 bpm</textarea>
-
-  <div class="row">
-    <div>
-      <label>Стиль</label>
-      <select id="style">
-        <option value="hiphop">Хип-хоп</option>
-        <option value="techno">Техно</option>
-        <option value="ballet">Балет</option>
-        <option value="break">Брейк-данс</option>
-        <option value="kpop">K-pop</option>
-      </select>
+<div class="container">
+  <header>
+    <div class="logo">⚡ AIdownloader</div>
+    <div class="auth-section" id="authSection">
+      <!-- Заполняется через JS -->
     </div>
-    <div>
-      <label>Энергия</label>
-      <select id="energy">
-        <option value="0.6">Низкая</option>
-        <option value="1.0" selected>Средняя</option>
-        <option value="1.6">Высокая</option>
-        <option value="2.2">Безумная</option>
-      </select>
+  </header>
+
+  <section class="hero">
+    <h1>Найдите видео по описанию</h1>
+    <p>Пишите на любом языке — система поймёт. Например: «девушка в красном танцует»</p>
+  </section>
+
+  <div class="search-box">
+    <div class="search-row">
+      <input type="text" class="search-input" id="prompt"
+             placeholder="Например: девушка в красном танцует"
+             value="девушка в красном танцует">
+      <button class="btn btn-primary" id="btnSearch">Найти видео</button>
+    </div>
+    <div class="translate-hint">
+      🌍 Автоперевод активен · запрос уйдёт на <b id="translatedPreview">girl in red dancing</b>
     </div>
   </div>
 
-  <div class="row3">
-    <div>
-      <label>Длит., с</label>
-      <input type="number" id="duration" value="5" min="1" max="30">
-    </div>
-    <div>
-      <label>Качество</label>
-      <select id="quality">
-        <option value="low">Низкое</option>
-        <option value="medium" selected>Среднее</option>
-        <option value="high">Высокое</option>
-      </select>
-    </div>
-    <div>
-      <label>Разрешение</label>
-      <select id="resolution">
-        <option value="256">256p</option>
-        <option value="512" selected>512p</option>
-        <option value="720">720p</option>
-      </select>
-    </div>
+  <div class="pixabay-attribution">
+    Видео предоставлены
+    <a href="https://pixabay.com" target="_blank" rel="noopener" class="pixabay-logo">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.2L19.5 8 12 11.8 4.5 8 12 4.2zM4 9.5l7 3.5v7l-7-3.5v-7zm9 10.5v-7l7-3.5v7l-7 3.5z"/>
+      </svg>
+      Pixabay
+    </a>
+    · 5.8 млн бесплатных видео
   </div>
 
-  <div class="tabs">
-    <div class="tab active" data-mode="local">🖥 Локально</div>
-    <div class="tab" data-mode="backend">🔌 Через бэкенд</div>
-  </div>
+  <div class="status" id="status">Введите описание и нажмите «Найти видео»</div>
+  <div class="results" id="results"></div>
+</div>
 
-  <details id="backendConfig" style="display:none">
-    <summary>🔌 Настройки бэкенда</summary>
-    <label style="margin-top:8px">URL бэкенда</label>
-    <input type="text" id="backendUrl" placeholder="http://localhost:8000" value="http://localhost:8000">
-    <div class="sub" style="margin-top:4px">
-      Запустите бэкенд на ПК: <code>python run.py</code>
+<!-- Модальное окно авторизации -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeAuthModal()">&times;</button>
+    <h2>Войти в AIdownloader</h2>
+    <p>Войдите через аккаунт Google или Apple, чтобы сохранять историю поиска и получать персональные рекомендации.</p>
+    <div class="auth-buttons">
+      <button class="auth-btn" onclick="signInWithGoogle()">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+        Продолжить с Google
+      </button>
+      <button class="auth-btn" onclick="signInWithApple()">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" alt="Apple">
+        Продолжить с Apple
+      </button>
     </div>
-  </details>
-
-  <button class="primary" id="btnGenerate">✨ Сгенерировать видео</button>
-  <button id="btnDownload" disabled>⬇️ Скачать видео</button>
-
-  <div class="progress-bar" id="progressBar" style="display:none">
-    <div class="fill" id="progressFill"></div>
-  </div>
-
-  <div class="device-panel">
-    <div><b>Устройство:</b> <span id="deviceTier" class="tier">определяется…</span></div>
-    <div><b>CPU:</b> <span id="deviceCpu">—</span></div>
-    <div><b>RAM:</b> <span id="deviceRam">—</span></div>
-  </div>
-
-  <div class="log" id="log">Готово. Введите промпт и нажмите «Сгенерировать».</div>
-
-  <div class="footer">
-    AIdownloader · <a href="https://github.com/" target="_blank">GitHub</a>
+    <p style="margin-top: 20px; font-size: 12px; color: #666;">
+      Нажимая «Продолжить», вы соглашаетесь с 
+      <a href="#" onclick="showPrivacyPolicy(); return false;" style="color: #6cf;">Политикой конфиденциальности</a>.
+    </p>
   </div>
 </div>
 
-<div class="stage">
-  <div class="video-wrap">
-    <video id="video" controls style="display:none"></video>
-    <div class="placeholder" id="ph">
-      <div style="font-size:48px; margin-bottom:10px;">🎬</div>
-      <div>Здесь появится сгенерированное видео</div>
-    </div>
-  </div>
-  <div class="hud" id="hud" style="display:none">
-    <div>Режим: <b id="hudMode">—</b></div>
-    <div>Статус: <b id="hudStatus">готово</b></div>
+<!-- Модальное окно политики конфиденциальности -->
+<div class="modal-overlay" id="privacyModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closePrivacyModal()">&times;</button>
+    <h2>Политика конфиденциальности</h2>
+    <p><b>Дата вступления в силу:</b> 26 ноября 2026 г.</p>
+    
+    <p><b>1. Сбор информации</b><br>
+    AIdownloader собирает только необходимую информацию для работы сервиса:</p>
+    <ul style="margin-left: 20px; color: #aaa;">
+      <li>Email и имя (при авторизации через Google/Apple)</li>
+      <li>История поисковых запросов (локально в браузере)</li>
+      <li>Технические данные (IP, тип устройства, браузер)</li>
+    </ul>
+
+    <p><b>2. Использование информации</b><br>
+    Мы используем собранную информацию для:</p>
+    <ul style="margin-left: 20px; color: #aaa;">
+      <li>Предоставления доступа к сервису</li>
+      <li>Улучшения качества поиска</li>
+      <li>Персонализации рекомендаций</li>
+      <li>Соблюдения юридических требований</li>
+    </ul>
+
+    <p><b>3. Хранение и защита</b><br>
+    Ваши данные хранятся в защищённой инфраструктуре Firebase (Google). Мы не передаём личные данные третьим лицам, кроме случаев, предусмотренных законом.</p>
+
+    <p><b>4. Cookies и аналитика</b><br>
+    Сайт использует cookies для авторизации и улучшения работы. Мы можем использовать Google Analytics для анализа трафика (анонимно).</p>
+
+    <p><b>5. Ваши права</b><br>
+    Вы можете в любой момент:</p>
+    <ul style="margin-left: 20px; color: #aaa;">
+      <li>Запросить копию ваших данных</li>
+      <li>Удалить аккаунт и все данные</li>
+      <li>Отозвать согласие на обработку данных</li>
+    </ul>
+
+    <p><b>6. Контакты</b><br>
+    По вопросам конфиденциальности: <a href="mailto:privacy@aidownloader.com" style="color: #6cf;">privacy@aidownloader.com</a></p>
+
+    <p style="margin-top: 20px; font-size: 12px; color: #666;">
+      Используя сервис, вы соглашаетесь с настоящей Политикой конфиденциальности.
+    </p>
   </div>
 </div>
+
+<footer>
+  <div>⚡ AIdownloader · Видео от <a href="https://pixabay.com" target="_blank">Pixabay</a></div>
+  <div style="margin-top:6px">
+    <a onclick="showPrivacyPolicy()">Политика конфиденциальности</a> · 
+    <a href="mailto:support@aidownloader.com">Контакты</a>
+  </div>
+</footer>
 
 <script>
 // ============================================================
-//  КОНФИГУРАЦИЯ
+//  FIREBASE КОНФИГУРАЦИЯ
 // ============================================================
-const $ = id => document.getElementById(id);
-let mode = 'local'; // local | backend
+// ВАЖНО: Замените на свой конфиг из Firebase Console!
+const firebaseConfig = {
+  apiKey: "AIzaSyDEMO_KEY_REPLACE_ME",
+  authDomain: "aidownloader.firebaseapp.com",
+  projectId: "aidownloader",
+  storageBucket: "aidownloader.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abcdef123456"
+};
 
-// ============================================================
-//  ДЕТЕКТОР УСТРОЙСТВА (локальный)
-// ============================================================
-function detectDevice() {
-  const cores = navigator.hardwareConcurrency || 4;
-  const ram = navigator.deviceMemory || 4;
-  let tier = 'MEDIUM';
-  if (cores >= 8 && ram >= 16) tier = 'HIGH';
-  else if (cores >= 4 && ram >= 8) tier = 'MEDIUM';
-  else if (ram >= 4) tier = 'LOW';
-  else tier = 'MINIMAL';
-
-  $('deviceTier').textContent = tier;
-  $('deviceCpu').textContent = `${cores} ядер`;
-  $('deviceRam').textContent = `${ram} GB`;
-  return { cores, ram, tier };
-}
+// Инициализация Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
 
 // ============================================================
-//  ЛОКАЛЬНАЯ ГЕНЕРАЦИЯ (процедурная анимация → видео)
+//  АВТОРИЗАЦИЯ
 // ============================================================
-async function generateLocal(prompt, style, energy, duration, quality, resolution) {
-  log('🎨 Создаю процедурную анимацию…');
-  setProgress(10);
+let currentUser = null;
 
-  const canvas = document.createElement('canvas');
-  canvas.width = parseInt(resolution);
-  canvas.height = parseInt(resolution);
-  const ctx = canvas.getContext('2d');
-
-  const fps = 24;
-  const totalFrames = fps * duration;
-  const frames = [];
-
-  for (let i = 0; i < totalFrames; i++) {
-    const t = i / totalFrames;
-    drawFrame(ctx, canvas.width, canvas.height, t, style, energy, prompt);
-    frames.push(canvas.toDataURL('image/jpeg', 0.8));
-    if (i % 10 === 0) setProgress(10 + (i / totalFrames) * 70);
-  }
-
-  log('🎬 Собираю видео…');
-  setProgress(85);
-
-  const stream = canvas.captureStream(fps);
-  const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
-  const chunks = [];
-
-  recorder.ondataavailable = e => chunks.push(e.data);
-
-  recorder.start();
-  let frameIdx = 0;
-  const interval = setInterval(() => {
-    if (frameIdx >= frames.length) {
-      clearInterval(interval);
-      recorder.stop();
-      return;
-    }
-    const img = new Image();
-    img.onload = () => ctx.drawImage(img, 0, 0);
-    img.src = frames[frameIdx];
-    frameIdx++;
-  }, 1000 / fps);
-
-  return new Promise(resolve => {
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      showVideo(url);
-      setProgress(100);
-      log('✅ Видео готово! Нажмите «Скачать видео».', 'ok');
-      resolve(url);
-    };
-  });
-}
-
-function drawFrame(ctx, w, h, t, style, energy, prompt) {
-  const gradient = ctx.createLinearGradient(0, 0, w, h);
-  gradient.addColorStop(0, `hsl(${t * 360}, 70%, 20%)`);
-  gradient.addColorStop(1, `hsl(${t * 360 + 180}, 70%, 10%)`);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, w, h);
-
-  const cx = w / 2;
-  const cy = h / 2;
-  const bounce = Math.sin(t * Math.PI * 4) * 20 * energy;
-
-  ctx.fillStyle = '#f5d0a9';
-  ctx.beginPath();
-  ctx.arc(cx, cy - 80 + bounce, 30, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = style === 'hiphop' ? '#4f7cff' : style === 'techno' ? '#a855f7' : '#6cf';
-  ctx.fillRect(cx - 25, cy - 50 + bounce, 50, 80);
-
-  const armAngle = Math.sin(t * Math.PI * 6) * 0.5 * energy;
-  ctx.strokeStyle = ctx.fillStyle;
-  ctx.lineWidth = 12;
-  ctx.lineCap = 'round';
-
-  ctx.beginPath();
-  ctx.moveTo(cx - 25, cy - 30 + bounce);
-  ctx.lineTo(cx - 60 + Math.cos(armAngle) * 30, cy - 10 + bounce + Math.sin(armAngle) * 30);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(cx + 25, cy - 30 + bounce);
-  ctx.lineTo(cx + 60 - Math.cos(armAngle) * 30, cy - 10 + bounce - Math.sin(armAngle) * 30);
-  ctx.stroke();
-
-  const legAngle = Math.sin(t * Math.PI * 4) * 0.3 * energy;
-  ctx.beginPath();
-  ctx.moveTo(cx - 15, cy + 30 + bounce);
-  ctx.lineTo(cx - 25 + Math.sin(legAngle) * 20, cy + 80 + bounce);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(cx + 15, cy + 30 + bounce);
-  ctx.lineTo(cx + 25 - Math.sin(legAngle) * 20, cy + 80 + bounce);
-  ctx.stroke();
-
-  ctx.shadowBlur = 20;
-  ctx.shadowColor = `hsl(${t * 360}, 100%, 50%)`;
-  ctx.strokeStyle = `hsl(${t * 360}, 100%, 50%)`;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(10, 10, w - 20, h - 20);
-  ctx.shadowBlur = 0;
-
-  // Подпись AIdownloader
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = 'rgba(255,255,255,0.3)';
-  ctx.font = '12px sans-serif';
-  ctx.fillText('AIdownloader', 16, h - 16);
-}
-
-// ============================================================
-//  ГЕНЕРАЦИЯ ЧЕРЕЗ БЭКЕНД
-// ============================================================
-async function generateBackend(prompt, style, energy, duration, quality, resolution) {
-  const backendUrl = $('backendUrl').value.trim();
-  if (!backendUrl) throw new Error('Укажите URL бэкенда');
-
-  log('🔌 Подключаюсь к бэкенду…');
-  setProgress(10);
-
-  const res = await fetch(`${backendUrl}/generate/adaptive`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt, style, energy, duration,
-      width: parseInt(resolution),
-      height: parseInt(resolution),
-      fps: 8, steps: 25, mode: 'LOCAL'
-    })
-  });
-
-  if (!res.ok) throw new Error(`Бэкенд: ${res.status}`);
-  const { task_id } = await res.json();
-  log(`📋 Задача: ${task_id.slice(0,8)}…`);
-  setProgress(20);
-
-  return new Promise((resolve, reject) => {
-    const wsUrl = backendUrl.replace(/^http/, 'ws') + `/ws/${task_id}`;
-    const ws = new WebSocket(wsUrl);
-
-    ws.onmessage = e => {
-      const msg = e.data;
-      if (msg === '__DONE__') {
-        ws.close();
-        fetch(`${backendUrl}/task/${task_id}`)
-          .then(r => r.json())
-          .then(t => {
-            if (t.video) {
-              const videoUrl = backendUrl + t.video;
-              showVideo(videoUrl);
-              setProgress(100);
-              log('✅ Видео готово! Нажмите «Скачать видео».', 'ok');
-              resolve(videoUrl);
-            } else {
-              reject(new Error('Видео не найдено'));
-            }
-          });
-      } else if (msg.startsWith('✅')) {
-        log(msg, 'ok');
-      } else if (msg.startsWith('❌')) {
-        log(msg, 'err');
-        reject(new Error(msg));
-      } else {
-        log(msg);
-      }
-    };
-
-    ws.onerror = () => reject(new Error('WebSocket ошибка'));
-  });
-}
-
-// ============================================================
-//  UI-ХЕЛПЕРЫ
-// ============================================================
-function log(msg, cls = 'info') {
-  const el = $('log');
-  el.innerHTML += `\n<span class="${cls}">${msg}</span>`;
-  el.scrollTop = el.scrollHeight;
-}
-
-function setProgress(percent) {
-  $('progressBar').style.display = 'block';
-  $('progressFill').style.width = percent + '%';
-  if (percent >= 100) {
-    setTimeout(() => $('progressBar').style.display = 'none', 2000);
-  }
-}
-
-function showVideo(url) {
-  const v = $('video');
-  v.src = url;
-  v.style.display = 'block';
-  $('ph').style.display = 'none';
-  $('btnDownload').disabled = false;
-  $('btnDownload').onclick = () => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `aidownloader_${Date.now()}.webm`;
-    a.click();
-    log('⬇️ Скачивание начато', 'ok');
-  };
-}
-
-// ============================================================
-//  ОБРАБОТЧИКИ
-// ============================================================
-document.querySelectorAll('.tab').forEach(t => {
-  t.onclick = () => {
-    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    mode = t.dataset.mode;
-    $('backendConfig').style.display = mode === 'backend' ? 'block' : 'none';
-  };
+// Проверка состояния авторизации
+auth.onAuthStateChanged(user => {
+  currentUser = user;
+  updateAuthUI();
 });
 
-$('btnGenerate').onclick = async () => {
-  const btn = $('btnGenerate');
-  btn.disabled = true;
-  $('log').innerHTML = '';
-  $('hud').style.display = 'block';
-  $('hudMode').textContent = mode === 'local' ? 'Локально' : 'Бэкенд';
-  $('hudStatus').textContent = 'генерация…';
+function updateAuthUI() {
+  const section = document.getElementById('authSection');
+  if (currentUser) {
+    const name = currentUser.displayName || currentUser.email.split('@')[0];
+    const avatar = currentUser.photoURL || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(name) + '&background=4f7cff&color=fff';
+    section.innerHTML = `
+      <div class="user-info">
+        <img src="${avatar}" alt="${name}" class="user-avatar">
+        <span>${name}</span>
+      </div>
+      <button class="btn btn-outline" onclick="signOut()">Выйти</button>
+    `;
+  } else {
+    section.innerHTML = `<button class="btn btn-primary" onclick="openAuthModal()">Войти</button>`;
+  }
+}
 
-  const prompt = $('prompt').value;
-  const style = $('style').value;
-  const energy = parseFloat($('energy').value);
-  const duration = parseInt($('duration').value);
-  const quality = $('quality').value;
-  const resolution = $('resolution').value;
+function openAuthModal() {
+  document.getElementById('authModal').classList.add('active');
+}
+
+function closeAuthModal() {
+  document.getElementById('authModal').classList.remove('active');
+}
+
+async function signInWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    await auth.signInWithPopup(provider);
+    closeAuthModal();
+    setStatus('✅ Вы вошли через Google', 'success');
+  } catch (e) {
+    setStatus('❌ Ошибка входа: ' + e.message, 'error');
+  }
+}
+
+async function signInWithApple() {
+  const provider = new firebase.auth.OAuthProvider('apple.com');
+  provider.addScope('email');
+  provider.addScope('name');
+  try {
+    await auth.signInWithPopup(provider);
+    closeAuthModal();
+    setStatus('✅ Вы вошли через Apple', 'success');
+  } catch (e) {
+    setStatus('❌ Ошибка входа: ' + e.message, 'error');
+  }
+}
+
+function signOut() {
+  auth.signOut();
+  setStatus('Вы вышли из аккаунта', 'success');
+}
+
+// ============================================================
+//  ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ
+// ============================================================
+function showPrivacyPolicy() {
+  document.getElementById('privacyModal').classList.add('active');
+}
+
+function closePrivacyModal() {
+  document.getElementById('privacyModal').classList.remove('active');
+}
+
+// Закрытие модалок по клику вне
+document.querySelectorAll('.modal-overlay').forEach(modal => {
+  modal.addEventListener('click', e => {
+    if (e.target === modal) modal.classList.remove('active');
+  });
+});
+
+// ============================================================
+//  PIXABAY API (код из предыдущей версии)
+// ============================================================
+const PIXABAY_API_KEY = '58836245-0c367cdb8ea315a0e93821391';
+const $ = id => document.getElementById(id);
+
+// Скрытый автоперевод (MyMemory API)
+const translationCache = new Map();
+
+async function translateToEnglish(text) {
+  if (/^[a-zA-Z0-9\s,.'-]+$/.test(text) && text.length > 2) {
+    return text.toLowerCase().trim();
+  }
+  if (translationCache.has(text)) return translationCache.get(text);
 
   try {
-    if (mode === 'local') {
-      await generateLocal(prompt, style, energy, duration, quality, resolution);
-    } else {
-      await generateBackend(prompt, style, energy, duration, quality, resolution);
-    }
-    $('hudStatus').textContent = 'готово';
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ru|en`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const translated = (data.responseData?.translatedText || text).toLowerCase().trim();
+    translationCache.set(text, translated);
+    return translated;
   } catch (e) {
-    log('❌ ' + e.message, 'err');
-    $('hudStatus').textContent = 'ошибка';
+    const dict = {'девушка':'girl','красный':'red','танцует':'dancing','море':'ocean','закат':'sunset'};
+    const words = text.toLowerCase().split(/\s+/);
+    const fallback = words.map(w => dict[w] || w).filter(Boolean).join(' ');
+    translationCache.set(text, fallback);
+    return fallback;
+  }
+}
+
+async function updatePreview() {
+  const text = $('prompt').value.trim();
+  if (!text) { $('translatedPreview').textContent = '—'; return; }
+  const translated = await translateToEnglish(text);
+  $('translatedPreview').textContent = translated;
+}
+
+let previewTimer;
+$('prompt').addEventListener('input', () => {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(updatePreview, 400);
+});
+updatePreview();
+
+async function searchPixabay(query) {
+  const url = `https://pixabay.com/api/videos/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(query)}&per_page=12&safesearch=true`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Ошибка API: ${res.status}`);
+  const data = await res.json();
+  if (data.total === 0) throw new Error('NOT_FOUND');
+  return data.hits || [];
+}
+
+function pickBestVideo(v) {
+  return v.videos.medium || v.videos.large || v.videos.small || v.videos.tiny;
+}
+
+function renderResults(videos, originalQuery) {
+  const results = $('results');
+  results.innerHTML = '';
+
+  if (videos.length === 0) {
+    setStatus('Ничего не найдено.', 'error');
+    return;
+  }
+
+  setStatus(`✅ Найдено видео: ${videos.length}`, 'success');
+
+  videos.forEach(v => {
+    const file = pickBestVideo(v);
+    if (!file) return;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <video src="${file.url}" controls muted preload="metadata" playsinline></video>
+      <div class="card-body">
+        <div class="card-title">${v.tags || 'Видео'}</div>
+        <div class="card-meta">
+          <span>${file.width}×${file.height} · ${(file.size/1024/1024).toFixed(1)} MB</span>
+          <a href="https://pixabay.com/videos/search/${encodeURIComponent(originalQuery)}/" target="_blank" class="pixabay-badge">Pixabay</a>
+        </div>
+        <button class="btn-download" data-url="${file.url}" data-id="${v.id}">⬇️ Скачать MP4</button>
+      </div>
+    `;
+    results.appendChild(card);
+  });
+
+  document.querySelectorAll('.btn-download').forEach(btn => {
+    btn.onclick = () => {
+      const a = document.createElement('a');
+      a.href = btn.dataset.url;
+      a.download = `aidownloader_${btn.dataset.id}.mp4`;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setStatus('⬇️ Скачивание начато', 'success');
+    };
+  });
+}
+
+function setStatus(msg, cls = '') {
+  const s = $('status');
+  s.className = 'status ' + cls;
+  s.innerHTML = msg;
+}
+
+$('btnSearch').onclick = async () => {
+  const btn = $('btnSearch');
+  btn.disabled = true;
+  $('results').innerHTML = '';
+
+  const userInput = $('prompt').value.trim();
+  if (!userInput) {
+    setStatus('Введите описание видео', 'error');
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    setStatus('<span class="loader"></span> Перевод запроса…');
+    const englishQuery = await translateToEnglish(userInput);
+
+    setStatus(`<span class="loader"></span> Ищу видео…`);
+    const videos = await searchPixabay(englishQuery);
+    renderResults(videos, englishQuery);
+  } catch (e) {
+    if (e.message === 'NOT_FOUND') {
+      setStatus('Ничего не найдено.', 'error');
+    } else {
+      setStatus('❌ ' + e.message, 'error');
+    }
   } finally {
     btn.disabled = false;
   }
 };
 
-// ============================================================
-//  ИНИЦИАЛИЗАЦИЯ
-// ============================================================
-detectDevice();
-log('👋 AIdownloader загружен', 'ok');
-log(`📱 Режим: ${mode === 'local' ? 'локальная генерация' : 'через бэкенд'}`);
+$('prompt').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('btnSearch').click();
+});
+
+// Инициализация UI
+updateAuthUI();
 </script>
 </body>
 </html>
