@@ -3,126 +3,174 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AIdownloader — Создать видео</title>
-<meta name="description" content="Создайте видео по описанию: поиск HD-роликов с автопереводом. Бесплатно.">
+<title>AIdownloader — Создать видео и фото</title>
+<meta name="description" content="Создайте видео или фото по названию на любом языке. Только для авторизованных.">
 
-<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: #0a0a0b; color: #e8e8ea;
-    min-height: 100vh; display: flex; flex-direction: column;
+  :root {
+    --bg:#08080a; --surface:rgba(20,20,24,.72); --surface-solid:#141418;
+    --border:rgba(255,255,255,.08); --border-strong:rgba(255,255,255,.14);
+    --text:#ededf2; --muted:#8a8a96;
+    --accent1:#22d3ee; --accent2:#a855f7; --accent3:#ec4899;
+    --grad:linear-gradient(120deg,#22d3ee,#a855f7 55%,#ec4899);
+    --green:#11a86b; --red:#f87171; --radius:18px; --shadow:0 10px 40px -12px rgba(0,0,0,.6);
   }
-  .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; flex: 1; width: 100%; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:-apple-system,"Segoe UI",Inter,Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+  body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(600px 400px at 15% 0%,rgba(34,211,238,.10),transparent 60%),radial-gradient(700px 500px at 90% 10%,rgba(168,85,247,.12),transparent 60%),radial-gradient(600px 600px at 50% 110%,rgba(236,72,153,.08),transparent 60%)}
+  .container{max-width:1240px;margin:0 auto;padding:0 20px 40px;flex:1;width:100%;position:relative;z-index:1}
 
-  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
-  .logo { font-size: 24px; font-weight: 700; background: linear-gradient(90deg,#4f7cff,#a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .auth-section { display: flex; align-items: center; gap: 12px; }
-  .user-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #aaa; }
-  .user-avatar { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #4f7cff; }
+  header{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:16px 0;margin-bottom:24px;backdrop-filter:blur(14px);background:rgba(8,8,10,.6);border-bottom:1px solid var(--border)}
+  .logo{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:800;letter-spacing:-.5px}
+  .logo-mark{width:34px;height:34px;border-radius:10px;background:var(--grad);display:grid;place-items:center;color:#fff;box-shadow:0 4px 18px -4px rgba(168,85,247,.6)}
+  .logo-text{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .auth-section{display:flex;align-items:center;gap:10px}
+  .user-info{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .user-avatar{width:34px;height:34px;border-radius:50%;border:2px solid transparent;background:var(--grad) border-box;padding:2px;object-fit:cover}
 
-  .btn { padding: 10px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .15s; white-space: nowrap; }
-  .btn-primary { background: linear-gradient(90deg,#4f7cff,#a855f7); color: white; }
-  .btn-primary:hover { filter: brightness(1.1); }
-  .btn-outline { background: transparent; border: 1px solid #2e2e32; color: #e8e8ea; }
-  .btn-outline:hover { background: #1e1e22; }
+  .btn{padding:11px 18px;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;transition:transform .12s,filter .15s,background .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:var(--grad);color:#fff;box-shadow:0 6px 22px -8px rgba(168,85,247,.7)}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;filter:none}
+  .btn-photo{background:linear-gradient(120deg,#ec4899,#f59e0b);color:#fff;box-shadow:0 6px 22px -8px rgba(236,72,153,.7)}
+  .btn-photo:hover{filter:brightness(1.08)}
+  .btn-outline{background:var(--surface);border:1px solid var(--border-strong);color:var(--text);backdrop-filter:blur(8px)}
+  .btn-outline:hover{background:rgba(255,255,255,.06)}
 
-  .hero { text-align: center; margin-bottom: 28px; }
-  .hero h1 { font-size: 30px; margin-bottom: 12px; background: linear-gradient(90deg,#4f7cff,#a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .hero p { color: #888; font-size: 15px; max-width: 600px; margin: 0 auto; }
+  .hero{text-align:center;margin:28px 0 24px}
+  .hero h1{font-size:clamp(28px,5vw,42px);font-weight:800;letter-spacing:-1px;margin-bottom:12px}
+  .hero h1 .grad{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .hero p{color:var(--muted);font-size:15px;max-width:620px;margin:0 auto;line-height:1.5}
+  .lock-note{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 14px;border-radius:999px;background:rgba(236,72,153,.12);color:#f9a8d4;font-size:12px;font-weight:600}
 
-  .search-box { background: #141416; border: 1px solid #2a2a2e; border-radius: 16px; padding: 20px; margin-bottom: 20px; }
-  .search-row { display: flex; gap: 10px; }
-  @media (max-width: 600px) { .search-row { flex-direction: column; } }
-  .search-input { flex: 1; background: #1e1e22; border: 1px solid #2e2e32; border-radius: 10px; padding: 14px 16px; color: #e8e8ea; font-size: 15px; outline: none; }
-  .search-input:focus { border-color: #4f7cff; }
+  .tabs{display:flex;gap:6px;justify-content:center;margin-bottom:20px;flex-wrap:wrap}
+  .tab{padding:10px 22px;border-radius:999px;cursor:pointer;font-size:14px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--border);backdrop-filter:blur(8px);transition:all .18s;display:inline-flex;align-items:center;gap:8px}
+  .tab:hover{color:var(--text);border-color:var(--border-strong)}
+  .tab.active{color:#fff;background:var(--grad);border-color:transparent;box-shadow:0 6px 20px -8px rgba(168,85,247,.6)}
+  .tab .count{font-size:11px;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:999px}
 
-  .translate-hint { font-size: 12px; color: #555; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-  .translate-hint b { color: #6cf; font-family: monospace; }
+  .search-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:18px;backdrop-filter:blur(16px);box-shadow:var(--shadow)}
+  .search-row{display:flex;gap:10px;flex-wrap:wrap}
+  .search-input{flex:1;min-width:220px;background:rgba(0,0,0,.35);border:1px solid var(--border-strong);border-radius:12px;padding:14px 16px;color:var(--text);font-size:15px;outline:none;transition:border-color .15s,box-shadow .15s}
+  .search-input:focus{border-color:var(--accent1);box-shadow:0 0 0 3px rgba(34,211,238,.15)}
+  .search-input::placeholder{color:#55555f}
+  .btn-group{display:flex;gap:10px;flex-wrap:wrap}
 
-  .sort-row { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
-  .sort-btn { padding: 6px 14px; background: #1e1e22; border: 1px solid #2e2e32; border-radius: 6px; color: #888; font-size: 12px; cursor: pointer; transition: all .15s; }
-  .sort-btn.active { background: #2a2a2e; color: #6cf; border-color: #4f7cff; }
+  .meta-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:12px;color:var(--muted)}
+  .meta-row b{color:var(--accent1);font-family:ui-monospace,monospace}
+  .lang-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(34,211,238,.12);color:var(--accent1);font-weight:600}
 
-  .status { text-align: center; padding: 14px; color: #888; font-size: 14px; }
-  .status.error { color: #f66; }
-  .status.success { color: #6cf; }
+  .sort-row{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+  .sort-btn{padding:7px 14px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .15s}
+  .sort-btn.active{background:rgba(168,85,247,.18);color:#d8b4fe;border-color:rgba(168,85,247,.4)}
 
-  .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 16px; }
-  .card { background: #141416; border: 1px solid #2a2a2e; border-radius: 12px; overflow: hidden; transition: transform .15s; display: flex; flex-direction: column; }
-  .card:hover { transform: translateY(-2px); border-color: #4f7cff; }
-  .card video { width: 100%; aspect-ratio: 16/9; background: #000; display: block; object-fit: cover; }
-  .card-body { padding: 12px; flex: 1; display: flex; flex-direction: column; }
-  .card-title { font-size: 13px; color: #e8e8ea; margin-bottom: 6px; }
-  .card-meta { font-size: 11px; color: #888; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-  .pixabay-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #11a86b; font-weight: 600; text-decoration: none; }
+  .status{text-align:center;padding:14px;color:var(--muted);font-size:14px}
+  .status.error{color:var(--red)}
+  .status.success{color:var(--accent1)}
 
-  .size-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: auto; }
-  .size-btn { padding: 8px 4px; background: #2a2a2e; color: #e8e8ea; border: 1px solid #2e2e32; border-radius: 6px; font-size: 11px; cursor: pointer; transition: background .15s; }
-  .size-btn:hover { background: #3a3a40; border-color: #4f7cff; }
-  .size-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .results{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:16px}
+  .card{background:var(--surface-solid);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;transition:transform .18s,border-color .18s,box-shadow .18s;animation:cardIn .4s ease both}
+  .card:hover{transform:translateY(-4px);border-color:rgba(168,85,247,.4);box-shadow:0 16px 40px -16px rgba(168,85,247,.4)}
+  @keyframes cardIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+  .card-media{position:relative;background:#000}
+  .card video,.card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#000}
+  .fav-btn{position:absolute;top:10px;right:10px;width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:grid;place-items:center;color:#fff;transition:transform .15s,background .15s}
+  .fav-btn:hover{transform:scale(1.1);background:rgba(0,0,0,.75)}
+  .fav-btn.active{color:#fbbf24}
+  .fav-btn svg{width:20px;height:20px}
+  .card-body{padding:12px;flex:1;display:flex;flex-direction:column}
+  .card-title{font-size:13px;color:var(--text);margin-bottom:6px;line-height:1.35}
+  .card-meta{font-size:11px;color:var(--muted);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+  .src-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--green);font-weight:700;text-decoration:none;padding:2px 7px;border-radius:6px;background:rgba(17,168,107,.12)}
+  .src-badge.ov{color:#f59e0b;background:rgba(245,158,11,.12)}
+  .size-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:auto}
+  .size-btn{padding:9px 4px;background:rgba(255,255,255,.04);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;transition:all .15s}
+  .size-btn:hover:not(:disabled){background:var(--grad);border-color:transparent;color:#fff}
+  .size-btn:disabled{opacity:.35;cursor:not-allowed}
 
-  .pixabay-attribution {
-    display: flex; align-items: center; justify-content: center;
-    gap: 8px; padding: 14px; margin: 20px 0 10px;
-    background: #141416; border: 1px solid #2a2a2e;
-    border-radius: 10px; font-size: 13px; color: #aaa; flex-wrap: wrap;
-  }
-  .pixabay-logo { display: inline-flex; align-items: center; gap: 6px; color: #11a86b; font-weight: 700; text-decoration: none; }
-  .pixabay-logo svg { width: 20px; height: 20px; }
+  .ad-slot{min-height:90px;margin:18px 0;border-radius:var(--radius);background:repeating-linear-gradient(45deg,rgba(255,255,255,.02),rgba(255,255,255,.02) 10px,rgba(255,255,255,.04) 10px,rgba(255,255,255,.04) 20px);border:1px dashed var(--border-strong);display:grid;place-items:center;color:#444;font-size:12px;text-align:center;padding:10px}
 
-  .load-more { display: block; margin: 20px auto; padding: 12px 28px; background: #1e1e22; border: 1px solid #2e2e32; border-radius: 8px; color: #e8e8ea; font-size: 14px; cursor: pointer; }
-  .load-more:hover { background: #2a2a2e; border-color: #4f7cff; }
+  .pixabay-attribution{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;margin:22px 0 10px;text-align:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-size:13px;color:var(--muted);backdrop-filter:blur(8px)}
+  .pixabay-logo{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-weight:700;text-decoration:none}
+  .pixabay-logo svg{width:20px;height:20px}
 
-  .loader { display: inline-block; width: 16px; height: 16px; border: 2px solid #4f7cff; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; vertical-align: middle; margin-right: 6px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .load-more{display:block;margin:22px auto 0;padding:12px 30px;background:var(--surface);border:1px solid var(--border-strong);border-radius:12px;color:var(--text);font-size:14px;cursor:pointer;transition:all .15s}
+  .load-more:hover{background:rgba(255,255,255,.06);border-color:var(--accent1)}
 
-  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
-  .modal-overlay.active { display: flex; }
-  .modal { background: #141416; border: 1px solid #2a2a2e; border-radius: 16px; padding: 32px; max-width: 560px; width: 100%; max-height: 85vh; overflow-y: auto; position: relative; }
-  .modal h2 { font-size: 22px; margin-bottom: 16px; color: #e8e8ea; }
-  .modal p { font-size: 14px; color: #aaa; line-height: 1.6; margin-bottom: 12px; }
-  .modal ul { margin-left: 20px; color: #aaa; margin-bottom: 12px; }
-  .modal li { margin-bottom: 6px; }
-  .modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: #888; font-size: 28px; cursor: pointer; line-height: 1; }
-  .modal-close:hover { color: #fff; }
+  .loader{display:inline-block;width:16px;height:16px;border:2px solid var(--accent1);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .empty{text-align:center;padding:60px 20px;color:var(--muted)}
+  .empty svg{width:56px;height:56px;opacity:.4;margin-bottom:14px}
 
-  .auth-buttons { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
-  .auth-btn { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; background: #1e1e22; border: 1px solid #2e2e32; border-radius: 8px; color: #e8e8ea; font-size: 14px; cursor: pointer; transition: background .15s; }
-  .auth-btn:hover { background: #2a2a2e; }
-  .auth-btn img { width: 20px; height: 20px; }
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+  .modal-overlay.active{display:flex;animation:fadeIn .2s}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .modal{background:#101014;border:1px solid var(--border-strong);border-radius:22px;padding:30px;max-width:580px;width:100%;max-height:86vh;overflow-y:auto;position:relative;box-shadow:0 30px 80px -20px rgba(0,0,0,.8)}
+  .modal h2{font-size:22px;margin-bottom:14px}
+  .modal p{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:12px}
+  .modal ul{margin-left:20px;color:var(--muted);margin-bottom:12px}
+  .modal li{margin-bottom:6px}
+  .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--muted);font-size:28px;cursor:pointer;line-height:1}
+  .modal-close:hover{color:#fff}
+  .auth-buttons{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+  .auth-btn{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;background:rgba(255,255,255,.04);border:1px solid var(--border-strong);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;transition:background .15s}
+  .auth-btn:hover{background:rgba(255,255,255,.08)}
+  .auth-btn img{width:20px;height:20px}
 
-  footer { text-align: center; padding: 24px 20px; color: #555; font-size: 12px; border-top: 1px solid #1e1e22; margin-top: auto; }
-  footer a { color: #6cf; text-decoration: none; cursor: pointer; }
+  footer{text-align:center;padding:28px 20px;color:#555;font-size:12px;border-top:1px solid var(--border);margin-top:auto}
+  footer a{color:var(--accent1);text-decoration:none;cursor:pointer}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#101014;border:1px solid var(--border-strong);color:var(--text);padding:12px 22px;border-radius:999px;font-size:14px;z-index:2000;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;box-shadow:var(--shadow);display:flex;align-items:center;gap:8px}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
 
 <div class="container">
   <header>
-    <div class="logo">⚡ AIdownloader</div>
+    <div class="logo">
+      <span class="logo-mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
+      <span class="logo-text">AIdownloader</span>
+    </div>
     <div class="auth-section" id="authSection"></div>
   </header>
 
   <section class="hero">
-    <h1>Создать видео</h1>
-    <p>Опишите видео, которое хотите — получите HD-ролики для скачивания. Пишите на любом языке.</p>
+    <h1>Создать <span class="grad">видео</span> и <span class="grad">фото</span></h1>
+    <p>Введите название — получите HD-ролики и фото из всего интернета. Пишите на любом из 50+ языков.</p>
+    <div class="lock-note">🔒 Создание доступно только после входа</div>
   </section>
+
+  <div class="tabs">
+    <div class="tab active" data-mode="video">🎬 Видео</div>
+    <div class="tab" data-mode="image">🖼 Фото</div>
+    <div class="tab" data-mode="favorites">⭐ Избранное <span class="count" id="favCount">0</span></div>
+  </div>
 
   <div class="search-box">
     <div class="search-row">
-      <input type="text" class="search-input" id="prompt"
-             placeholder="Например: девушка в красном танцует на сцене"
-             value="девушка в красном танцует">
-      <button class="btn btn-primary" id="btnCreate">Создать видео</button>
+      <input type="text" class="search-input" id="prompt" placeholder="Введите название">
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btnCreateVideo">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          Создать видео
+        </button>
+        <button class="btn btn-photo" id="btnCreatePhoto">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          Создать фото
+        </button>
+      </div>
     </div>
-    <div class="translate-hint">
-      <span>🌍 Поисковый запрос: <b id="translatedPreview">—</b></span>
-      <span>Всего на Pixabay: <b id="totalCount">—</b></span>
+    <div class="meta-row">
+      <span>Язык: <span class="lang-chip" id="langChip">🌍 авто</span></span>
+      <span>Запрос: <b id="translatedPreview">—</b></span>
+      <span>Всего: <b id="totalCount">—</b></span>
     </div>
     <div class="sort-row">
       <button class="sort-btn active" data-order="popular">🔥 Популярные</button>
@@ -131,126 +179,65 @@
     </div>
   </div>
 
-  <div class="status" id="status">Введите описание и нажмите «Создать видео»</div>
+  <div class="ad-slot" id="adTop">Рекламный блок (AdSense) · заполняется после одобрения</div>
+
+  <div class="status" id="status">Войдите, чтобы создавать видео и фото</div>
   <div class="results" id="results"></div>
   <button class="load-more" id="btnLoadMore" style="display:none">Показать ещё ↓</button>
 
   <div class="pixabay-attribution">
-    Видео предоставлены
-    <a href="https://pixabay.com" target="_blank" rel="noopener" class="pixabay-logo">
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.2L19.5 8 12 11.8 4.5 8 12 4.2zM4 9.5l7 3.5v7l-7-3.5v-7zm9 10.5v-7l7-3.5v7l-7 3.5z"/>
-      </svg>
-      Pixabay
-    </a>
-    · более 5.8 млн бесплатных HD-роликов · без водяных знаков · можно использовать коммерчески
+    Источники:
+    <a href="https://pixabay.com" target="_blank" rel="noopener" class="pixabay-logo"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/></svg>Pixabay</a>
+    +
+    <a href="https://openverse.org" target="_blank" rel="noopener" class="pixabay-logo" style="color:#f59e0b"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>Openverse</a>
+    · Flickr · Wikimedia · Smithsonian · Met Museum · 800+ млн материалов
   </div>
 </div>
 
-<!-- Модальное окно авторизации -->
 <div class="modal-overlay" id="authModal">
   <div class="modal">
     <button class="modal-close" onclick="closeAuthModal()">&times;</button>
-    <h2>Войти в AIdownloader</h2>
-    <p>Авторизуйтесь, чтобы сохранять историю поиска и получать до 150 роликов за один запрос.</p>
+    <h2>🔒 Войдите, чтобы создавать</h2>
+    <p>Создание видео и фото доступно только авторизованным пользователям. Это защищает сервис от перегрузки и позволяет сохранять избранное.</p>
     <div class="auth-buttons">
-      <button class="auth-btn" onclick="signInWithGoogle()">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
-        Продолжить с Google
-      </button>
-      <button class="auth-btn" onclick="signInWithApple()">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/apple.svg" alt="Apple">
-        Продолжить с Apple
-      </button>
+      <button class="auth-btn" onclick="signInWithGoogle()"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"> Продолжить с Google</button>
+      <button class="auth-btn" onclick="signInWithApple()"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/apple.svg" alt="Apple"> Продолжить с Apple</button>
     </div>
-    <p style="margin-top:20px; font-size:12px; color:#666;">
-      Нажимая «Продолжить», вы соглашаетесь с
-      <a onclick="showPrivacyPolicy(); return false;" style="color:#6cf; cursor:pointer;">Политикой конфиденциальности</a>.
-    </p>
+    <p style="margin-top:18px;font-size:12px;color:#555;">Продолжая, вы соглашаетесь с <a onclick="showPrivacyPolicy();return false;" style="color:var(--accent1);cursor:pointer;">Политикой конфиденциальности</a>.</p>
   </div>
 </div>
 
-<!-- Политика конфиденциальности -->
 <div class="modal-overlay" id="privacyModal">
   <div class="modal">
     <button class="modal-close" onclick="closePrivacyModal()">&times;</button>
     <h2>Политика конфиденциальности</h2>
-    <p><b>Дата вступления в силу:</b> 26 ноября 2026 г.</p>
-
-    <p><b>1. Кто мы</b><br>
-    AIdownloader — веб-сервис для поиска и скачивания видеоматериалов по текстовому описанию. Сервис использует открытый API Pixabay (pixabay.com) для поиска видео.</p>
-
-    <p><b>2. Какую информацию мы собираем</b><br>
-    При авторизации (через Google или Apple) мы получаем:</p>
-    <ul>
-      <li>Ваш email-адрес</li>
-      <li>Ваше имя (если предоставлено)</li>
-      <li>URL аватара (если предоставлен)</li>
-    </ul>
-    <p>При использовании сервиса локально в вашем браузере сохраняется:</p>
-    <ul>
-      <li>История поисковых запросов (не более 30 записей)</li>
-      <li>Настройки сортировки</li>
-    </ul>
-
-    <p><b>3. Как мы используем информацию</b></p>
-    <ul>
-      <li>Для персонализации поиска и отображения истории</li>
-      <li>Для соблюдения требований Pixabay API</li>
-      <li>Для предотвращения злоупотреблений (ограничение частоты запросов)</li>
-    </ul>
-
-    <p><b>4. Передача данных третьим лицам</b><br>
-    Ваш поисковый запрос и API-ключ передаются напрямую в Pixabay.com для получения результатов. Аутентификация происходит через Google (Firebase) и Apple. Мы не продаём и не передаём данные третьим лицам, кроме как для работы сервиса.</p>
-
-    <p><b>5. Cookies и локальное хранилище</b><br>
-    Мы используем localStorage браузера для хранения настроек. Cookies применяются Firebase для сессии авторизации. Аналитический трекинг не ведётся.</p>
-
-    <p><b>6. Защита данных</b><br>
-    Данные авторизации защищены на инфраструктуре Google Firebase. API-ключ Pixabay хранится на стороне клиента и защищён лимитами запросов.</p>
-
-    <p><b>7. Ваши права</b><br>
-    Вы можете:</p>
-    <ul>
-      <li>Выйти из аккаунта в любой момент</li>
-      <li>Очистить историю поиска в настройках браузера</li>
-      <li>Запросить удаление аккаунта: напишите <a style="color:#6cf;">support@aidownloader.app</a></li>
-      <li>Отозвать согласие через настройки Google/Apple аккаунта</li>
-    </ul>
-
-    <p><b>8. Возрастные ограничения</b><br>
-    Сервис предназначен для лиц от 13 лет. Для пользователей младше 13 лет требуется согласие родителя/опекуна.</p>
-
-    <p><b>9. Изменения политики</b><br>
-    Мы можем обновлять настоящую политику. О значимых изменениях уведомим на этой странице. Продолжение использования сервиса означает согласие с новой редакцией.</p>
-
-    <p><b>10. Контакты</b><br>
-    По вопросам конфиденциальности: <a style="color:#6cf;">privacy@aidownloader.app</a></p>
-
-    <p style="margin-top:20px; font-size:12px; color:#666;">
-      Продолжая работу с сайтом, вы подтверждаете ознакомление с настоящей Политикой конфиденциальности.
-    </p>
+    <p><b>Дата:</b> 26 ноября 2026 г.</p>
+    <p><b>1. Кто мы.</b> AIdownloader — веб-сервис поиска и скачивания видео/фото по названию. Использует открытые API Pixabay и Openverse (агрегатор Flickr, Wikimedia, Smithsonian и др.) и инфраструктуру Google Firebase.</p>
+    <p><b>2. Сбор.</b> При входе через Google/Apple получаем email, имя, аватар (если предоставлены). Локально хранится история запросов (до 30).</p>
+    <p><b>3. Использование.</b> Персонализация, синхронизация избранного, соблюдение требований API, защита от злоупотреблений.</p>
+    <p><b>4. Третьи лица.</b> Запрос передаётся в Pixabay.com и openverse.org. Аутентификация — через Google (Firebase) и Apple. Данные не продаются.</p>
+    <p><b>5. Cookies/localStorage.</b> localStorage — настройки. Cookies — сессия Firebase. Рекламные блоки могут использовать cookies рекламодателей.</p>
+    <p><b>6. Защита.</b> Данные на Firebase. Firestore-правила ограничивают избранное владельцем аккаунта.</p>
+    <p><b>7. Права.</b> Выход, очистка истории, удаление аккаунта (<a style="color:var(--accent1);">support@aidownloader.app</a>), отзыв согласия в Google/Apple.</p>
+    <p><b>8. Возраст.</b> От 13 лет; до 13 — с согласия родителя.</p>
+    <p><b>9. Изменения.</b> Обновления политики — уведомлением на этой странице.</p>
+    <p><b>10. Контакты.</b> <a style="color:var(--accent1);">privacy@aidownloader.app</a></p>
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <footer>
-  <div>⚡ AIdownloader · Бесплатные HD-видео от <a href="https://pixabay.com" target="_blank">Pixabay</a></div>
-  <div style="margin-top:6px">
-    <a onclick="showPrivacyPolicy()">Политика конфиденциальности</a> ·
-    <a href="mailto:support@aidownloader.app">Контакты</a>
-  </div>
+  <div>⚡ AIdownloader · Pixabay + Openverse</div>
+  <div style="margin-top:6px"><a onclick="showPrivacyPolicy()">Политика конфиденциальности</a> · <a href="mailto:support@aidownloader.app">Контакты</a></div>
 </footer>
 
 <script>
 // ============================================================
-//  КОНФИГУРАЦИЯ PIXABAY
+//  КОНСТАНТЫ + FIREBASE (aidownloader-aced8)
 // ============================================================
 const PIXABAY_API_KEY = '58836245-0c367cdb8ea315a0e93821391';
 const $ = id => document.getElementById(id);
-
-// ============================================================
-//  FIREBASE (ваш реальный проект)
-// ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyDe_jIik5f7yztfPfZMTUs7d9L_pjELOZQ",
   authDomain: "aidownloader-aced8.firebaseapp.com",
@@ -261,273 +248,149 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
+const db = firebase.firestore();
 
-let currentUser = null;
-auth.onAuthStateChanged(user => { currentUser = user; updateAuthUI(); });
+let currentUser = null, favSet = new Set(), favMap = new Map();
+
+// ============================================================
+//  АВТОРИЗАЦИЯ
+// ============================================================
+auth.onAuthStateChanged(async user => { currentUser = user; updateAuthUI(); await loadFavorites(); });
 
 function updateAuthUI() {
-  const section = $('authSection');
+  const s = $('authSection');
   if (currentUser) {
     const name = currentUser.displayName || currentUser.email.split('@')[0];
-    const avatar = currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4f7cff&color=fff`;
-    section.innerHTML = `
-      <div class="user-info">
-        <img src="${avatar}" alt="${name}" class="user-avatar">
-        <span>${name}</span>
-      </div>
-      <button class="btn btn-outline" onclick="signOut()">Выйти</button>`;
+    const avatar = currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=a855f7&color=fff`;
+    s.innerHTML = `<div class="user-info"><img src="${avatar}" class="user-avatar"><span>${name}</span></div><button class="btn btn-outline" onclick="signOut()">Выйти</button>`;
+    if (!statusLocked) setStatus('✅ Теперь можно создавать видео и фото', 'success');
   } else {
-    section.innerHTML = `<button class="btn btn-primary" onclick="openAuthModal()">Войти</button>`;
+    s.innerHTML = `<button class="btn btn-primary" onclick="openAuthModal()">Войти</button>`;
+    lockStatus();
   }
 }
+function lockStatus(){ $('results').innerHTML=''; $('btnLoadMore').style.display='none'; $('totalCount').textContent='—'; setStatus('🔒 Войдите, чтобы создавать видео и фото'); }
+let statusLocked = false;
 
 function openAuthModal(){ $('authModal').classList.add('active'); }
 function closeAuthModal(){ $('authModal').classList.remove('active'); }
 function showPrivacyPolicy(){ $('privacyModal').classList.add('active'); }
 function closePrivacyModal(){ $('privacyModal').classList.remove('active'); }
+async function signInWithGoogle(){ try{ await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); closeAuthModal(); toast('✅ Вы вошли'); }catch(e){ toast(e.code==='auth/unauthorized-domain'?'❌ Добавьте домен в Firebase → Authorized domains':'❌ '+e.message);} }
+async function signInWithApple(){ const p=new firebase.auth.OAuthProvider('apple.com'); p.addScope('email'); p.addScope('name'); try{ await auth.signInWithPopup(p); closeAuthModal(); toast('✅ Вы вошли через Apple'); }catch(e){ toast('❌ Apple: '+e.message);} }
+function signOut(){ auth.signOut(); toast('Вы вышли'); }
+document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('active'); }));
 
-async function signInWithGoogle() {
-  try {
-    await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-    closeAuthModal();
-    setStatus('✅ Вы вошли через Google', 'success');
-  } catch (e) {
-    setStatus('❌ ' + (e.code === 'auth/unauthorized-domain'
-      ? 'Добавьте домен сайта в Firebase → Authentication → Settings → Authorized domains'
-      : e.message), 'error');
-  }
-}
-async function signInWithApple() {
-  const p = new firebase.auth.OAuthProvider('apple.com');
-  p.addScope('email'); p.addScope('name');
-  try { await auth.signInWithPopup(p); closeAuthModal(); setStatus('✅ Вы вошли через Apple', 'success'); }
-  catch (e) { setStatus('❌ Apple: ' + e.message, 'error'); }
-}
-function signOut() { auth.signOut(); setStatus('Вы вышли', 'success'); }
-
-document.querySelectorAll('.modal-overlay').forEach(m => {
-  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
-});
+// ГЕЙТ: создание только после входа
+function requireAuth(){ if(!currentUser){ openAuthModal(); toast('🔒 Сначала войдите, чтобы создавать'); return false; } return true; }
 
 // ============================================================
-//  УМНЫЙ РАЗБОР ЗАПРОСА ПОД PIXABAY
+//  ИЗБРАННОЕ (Firestore для авторизованных)
 // ============================================================
-const STOP_WORDS_RU = new Set(['и','в','во','на','под','над','с','со','у','к','о','об','от','для','из','по','из-за','что','как','это','этот','эта','это','эти','а','но','или','не','да','есть','был','была','были','сам','сама','самое','также','который','которая','которое','которые','очень','тут','там','твой','твоя','моё','мой','моя','наш','наша','ваш','ваша','свой','своя','при','без','про','между','около','рядом','вместе','один','одна','одно','два','три','четыре','пять','первый','второй','третий','самый','самая','самое','такой','такая','такое','такие','какой','какая','какие','куда','когда','где','кто','что','чем','чем','потому']);
-
-const STOP_WORDS_EN = new Set(['the','a','an','in','on','at','to','of','for','with','by','from','is','are','was','were','be','been','being','and','or','but','if','then','than','so','that','this','these','those','it','its','they','them','their','he','she','his','her','you','your','we','our','i','my','me','as','not','no','yes','very','also','just','now','there','here','about','into','over','under','up','down','out','off','again','more','most','some','any','all','each','every','both','few','many','much','one','two','three']);
-
-const ruToEnFallback = {
-  'девушка':'girl','женщина':'woman','парень':'man','мужчина':'man','ребёнок':'child','дети':'kids',
-  'красный':'red','красная':'red','красное':'red','красном':'red','синий':'blue','синяя':'blue','белый':'white','белая':'white','чёрный':'black','чёрная':'black',
-  'танцует':'dancing','танец':'dance','танцы':'dancing','танцевать':'dance',
-  'море':'ocean','океан':'ocean','пляж':'beach','закат':'sunset','рассвет':'sunrise','солнце':'sun',
-  'город':'city','улица':'street','ночь':'night','день':'day','вечер':'evening','утро':'morning',
-  'машина':'car','автомобиль':'car','дорога':'road','поезд':'train','самолёт':'plane',
-  'природа':'nature','лес':'forest','деревья':'trees','гора':'mountain','поле':'field','река':'river','озеро':'lake',
-  'снег':'snow','дождь':'rain','ветер':'wind','туман':'fog','облака':'clouds',
-  'кошка':'cat','собака':'dog','птица':'bird','лошадь':'horse','рыба':'fish','корова':'cow',
-  'еда':'food','кофе':'coffee','чай':'tea','вода':'water','фрукты':'fruits',
-  'музыка':'music','концерт':'concert','сцена':'stage','свет':'light','огонь':'fire','лампа':'lamp',
-  'спорт':'sport','футбол':'football','бег':'running','йога':'yoga','тренажёр':'gym',
-  'офис':'office','работа':'work','компьютер':'computer','телефон':'phone',
-  'любовь':'love','семья':'family','друг':'friend','счастье':'happiness','свобода':'freedom'
-};
-
-const translationCache = new Map();
-
-async function translateToEnglish(text) {
-  const normalized = text.toLowerCase().trim();
-  if (/^[a-zA-Z0-9\s,.'-]+$/.test(normalized) && normalized.length > 2) return normalized;
-  if (translationCache.has(normalized)) return translationCache.get(normalized);
-
-  try {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(normalized)}&langpair=ru|en`;
-    const res = await fetch(url);
-    const data = await res.json();
-    let translated = (data.responseData?.translatedText || normalized).toLowerCase();
-    if (translated.includes('MYMEMORY WARNING') || translated.includes('QUERY LENGTH')) {
-      translated = fallbackTranslate(normalized);
-    }
-    translationCache.set(normalized, translated);
-    return translated;
-  } catch (e) {
-    const fallback = fallbackTranslate(normalized);
-    translationCache.set(normalized, fallback);
-    return fallback;
-  }
+async function loadFavorites(){
+  favSet.clear(); favMap.clear();
+  if(currentUser){ try{ const snap=await db.collection('users').doc(currentUser.uid).collection('favorites').orderBy('savedAt','desc').limit(200).get(); snap.forEach(d=>{const v=d.data(); favSet.add(v.id); favMap.set(v.id,v);}); }catch(e){console.warn(e.message);} }
+  $('favCount').textContent=favSet.size;
+  if(currentMode==='favorites') renderFavorites();
 }
-
-function fallbackTranslate(text) {
-  return text.split(/\s+/).map(w => ruToEnFallback[w] || w).join(' ');
+async function toggleFavorite(item){
+  if(!currentUser){ openAuthModal(); toast('🔒 Войдите, чтобы сохранять избранное'); return; }
+  const id=item.id;
+  if(favSet.has(id)){ favSet.delete(id); favMap.delete(id); await db.collection('users').doc(currentUser.uid).collection('favorites').doc(String(id)).delete().catch(()=>{}); toast('⭐ Удалено'); }
+  else{ favSet.add(id); favMap.set(id,{...item,savedAt:Date.now()}); await db.collection('users').doc(currentUser.uid).collection('favorites').doc(String(id)).set({...item,savedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{}); toast('⭐ Добавлено в избранное'); }
+  $('favCount').textContent=favSet.size;
+  document.querySelectorAll(`.fav-btn[data-id="${id}"]`).forEach(b=>b.classList.toggle('active',favSet.has(id)));
 }
-
-/** Превращает фразу в поисковые ключевые слова для Pixabay */
-function toKeywords(text, isEnglish) {
-  const stopWords = isEnglish ? STOP_WORDS_EN : STOP_WORDS_RU;
-  const words = text
-    .toLowerCase()
-    .replace(/[.,!?;:'"()]/g, ' ')
-    .split(/\s+/)
-    .filter(w => w.length > 1 && !stopWords.has(w));
-  return words.join(' ') || text.toLowerCase();
+function renderFavorites(){
+  const r=$('results'); r.innerHTML=''; $('btnLoadMore').style.display='none'; $('totalCount').textContent=favSet.size;
+  if(favSet.size===0){ r.innerHTML=`<div class="empty" style="grid-column:1/-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l3 7 7 .5-5.5 4.5L18 21l-6-3.5L6 21l1.5-7L2 9.5 9 9z"/></svg><div>В избранном пусто.</div></div>`; setStatus(''); return; }
+  [...favMap.values()].sort((a,b)=>(b.savedAt||0)-(a.savedAt||0)).forEach((it,i)=>r.appendChild(buildCard(it,i)));
+  setStatus(`⭐ В избранном: ${favMap.size}`,'success');
 }
-
-// Предпросмотр ключевых слов
-async function updatePreview() {
-  const text = $('prompt').value.trim();
-  if (!text) { $('translatedPreview').textContent = '—'; return; }
-  const isEnglish = /^[a-zA-Z0-9\s,.'-]+$/.test(text);
-  const eng = isEnglish ? text : await translateToEnglish(text);
-  $('translatedPreview').textContent = toKeywords(eng, true);
-}
-
-let previewTimer;
-$('prompt').addEventListener('input', () => {
-  clearTimeout(previewTimer);
-  previewTimer = setTimeout(updatePreview, 500);
-});
-updatePreview();
 
 // ============================================================
-//  ЗАПРОС К PIXABAY (полностью как на сайте)
+//  МНОГОЯЗЫЧНЫЙ АВТОПЕРЕВОД (50+ языков)
 // ============================================================
-let currentPage = 1;
-let currentQuery = '';
-let currentOrder = 'popular';
-let allResults = [];
+const LANG_RANGES=[[/[\u0400-\u04FF]/,'ru'],[/[\u0600-\u06FF]/,'ar'],[/[\u4E00-\u9FFF]/,'zh-CN'],[/[\u3040-\u30FF]/,'ja'],[/[\uAC00-\uD7AF]/,'ko'],[/[\u0900-\u097F]/,'hi'],[/[\u0E00-\u0E7F]/,'th'],[/[\u0590-\u05FF]/,'he'],[/[\u1000-\u109F]/,'my'],[/[\u1200-\u137F]/,'am'],[/[\u0B80-\u0BFF]/,'ta'],[/[\u0C00-\u0C7F]/,'te']];
+const DIACRITIC=[[ /[\u00E9\u00E8\u00EA\u00EB\u00E7\u00EE]/,'fr'],[/[\u00E1\u00E9\u00ED\u00F3\u00FA\u00F1\u00BF\u00A1]/,'es'],[/[\u00E4\u00F6\u00FC\u00DF]/,'de'],[/[\u00E0\u00E8\u00EC\u00F2\u00F9]/,'it'],[/[\u00E1\u00E9\u00F3\u00FA\u00F5\u00E7\u00E3]/,'pt'],[/[\u00E5\u00E4\u00F6]/,'sv']];
+function detectLang(t){ t=t.toLowerCase(); for(const[re,l]of LANG_RANGES)if(re.test(t))return l; for(const[re,l]of DIACRITIC)if(re.test(t))return l; return 'en'; }
+const STOP={en:new Set(['the','a','an','in','on','at','to','of','for','with','by','from','is','are','was','were','be','been','and','or','but','if','then','than','so','that','this','these','those','it','its','they','them','their','he','she','his','her','you','your','we','our','i','my','me','as','not','no','yes','very','also','just','now','there','here','about','into','over','under','up','down','out','off','again','more','most','some','any','all','each','every','both','few','many','much','one','two','three']),ru:new Set(['и','в','во','на','под','над','с','со','у','к','о','об','от','для','из','по','что','как','это','этот','эта','эти','а','но','или','не','да','есть','был','была','были','сам','сама','самое','также','который','которая','которые','очень','тут','там','твой','твоя','моё','мой','моя','наш','ваш','свой','при','без','про','между','около','рядом','вместе','один','одна','одно','два','три','первый','второй','третий','самый','самая','такой','такая','такие','какой','какие','куда','когда','где','кто','чем','потому'])};
+const COMMON=new Set(['de','la','le','el','der','die','das','il','lo','di','da','en','un','une','una','uno','les','des','et','o','e','que','se','su','con','por','para','es','son','esta','este','esto']);
+function fallbackTranslate(t){ const d={'девушка':'girl','женщина':'woman','парень':'man','мужчина':'man','ребёнок':'child','дети':'kids','красный':'red','красная':'red','красное':'red','красном':'red','синий':'blue','белый':'white','чёрный':'black','танцует':'dancing','танец':'dance','танцы':'dancing','танцевать':'dance','музыка':'music','море':'ocean','океан':'ocean','пляж':'beach','закат':'sunset','рассвет':'sunrise','солнце':'sun','луна':'moon','город':'city','улица':'street','ночь':'night','день':'day','вечер':'evening','утро':'morning','машина':'car','автомобиль':'car','дорога':'road','поезд':'train','самолёт':'plane','природа':'nature','лес':'forest','деревья':'trees','гора':'mountain','поле':'field','река':'river','озеро':'lake','снег':'snow','дождь':'rain','ветер':'wind','туман':'fog','облака':'clouds','кошка':'cat','собака':'dog','птица':'bird','лошадь':'horse','рыба':'fish','еда':'food','кофе':'coffee','чай':'tea','вода':'water','фрукты':'fruits','концерт':'concert','сцена':'stage','свет':'light','огонь':'fire','лампа':'lamp','спорт':'sport','футбол':'football','бег':'running','йога':'yoga','офис':'office','работа':'work','компьютер':'computer','телефон':'phone','любовь':'love','семья':'family','друг':'friend','счастье':'happiness','свобода':'freedom','с':'with','и':'and','в':'in','на':'on','под':'under','для':'for','из':'from','по':'by','о':'about'}; return t.split(/\s+/).map(w=>d[w]||w).filter(Boolean).join(' '); }
+const cache=new Map();
+async function translateToEnglish(text,lang){ const n=text.toLowerCase().trim(); if(lang==='en')return n; const k=lang+'|'+n; if(cache.has(k))return cache.get(k); try{ const res=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(n)}&langpair=${lang}|en`); const data=await res.json(); let tr=(data.responseData?.translatedText||n).toLowerCase(); if(tr.includes('MYMEMORY')||tr.includes('QUERY LENGTH')||tr===n)tr=fallbackTranslate(n); cache.set(k,tr); return tr; }catch(e){ const fb=fallbackTranslate(n); cache.set(k,fb); return fb; } }
+function toKeywords(t,lang){ const sw=STOP[lang]||COMMON; const w=t.toLowerCase().replace(/[.,!?;:'"()]/g,' ').split(/\s+/).filter(x=>x.length>1&&!sw.has(x)); return w.join(' ')||t.toLowerCase(); }
+async function updatePreview(){ const t=$('prompt').value.trim(); if(!t){$('translatedPreview').textContent='—';$('langChip').textContent='🌍 авто';return;} const lang=detectLang(t); $('langChip').textContent='🌍 '+lang.toUpperCase(); const eng=await translateToEnglish(t,lang); $('translatedPreview').textContent=toKeywords(eng,'en'); }
+let pt; $('prompt').addEventListener('input',()=>{clearTimeout(pt);pt=setTimeout(updatePreview,450);}); updatePreview();
 
-async function searchPixabay(query, page, order) {
-  // Никаких video_type и safesearch — берём всё, что выдаёт сайт
-  const params = new URLSearchParams({
-    key: PIXABAY_API_KEY,
-    q: query,
-    per_page: '15',
-    page: page.toString(),
-    order: order,
-    locale: 'en',
-  });
-  const res = await fetch(`https://pixabay.com/api/videos/?${params}`);
-  if (res.status === 400) {
-    const t = await res.text();
-    throw new Error(t.includes('INVALID_KEY') ? 'Неверный API-ключ' : 'Ошибка ключа: 400');
+// ============================================================
+//  ИСТОЧНИКИ: Pixabay (видео/фото) + Openverse (фото из всего интернета)
+// ============================================================
+let currentMode='video', currentPage=1, currentQuery='', currentOrder='popular', allResults=[];
+
+async function searchPixabayVideo(kw,page,order){ const p=new URLSearchParams({key:PIXABAY_API_KEY,q:kw,per_page:'15',page:String(page),order,locale:'en'}); const r=await fetch(`https://pixabay.com/api/videos/?${p}`); if(r.status===400)throw new Error('Неверный API-ключ'); if(r.status===429)throw new Error('Много запросов, подождите'); if(!r.ok)throw new Error('Pixabay: '+r.status); return await r.json(); }
+async function searchPixabayImage(kw,page,order){ const p=new URLSearchParams({key:PIXABAY_API_KEY,q:kw,per_page:'15',page:String(page),order,locale:'en'}); const r=await fetch(`https://pixabay.com/api/images/?${p}`); if(r.status===400)throw new Error('Неверный API-ключ'); if(r.status===429)throw new Error('Много запросов, подождите'); if(!r.ok)throw new Error('Pixabay: '+r.status); return await r.json(); }
+async function searchOpenverse(kw,page){ const p=new URLSearchParams({q:kw,page_size:'20',page:String(page)}); const r=await fetch(`https://api.openverse.org/v1/images/?${p}`); if(!r.ok) throw new Error('Openverse: '+r.status); return await r.json(); }
+
+function normalizeVideo(v){ const s={small:v.videos.small,medium:v.videos.medium,large:v.videos.large}; const pv=s.small||s.medium||s.large; return {kind:'video',id:v.id,tags:v.tags||'',pageURL:v.pageURL,poster:pv?pv.picture:'',preview:pv?pv.url:'',width:pv?pv.width:0,height:pv?pv.height:0,duration:v.duration||0,source:'Pixabay',sizes:{small:s.small?.url,medium:s.medium?.url,large:s.large?.url}}; }
+function normalizePixabayImage(v){ return {kind:'image',id:v.id,tags:v.tags||'',pageURL:v.pageURL,poster:v.webformatURL,preview:v.webformatURL,width:v.width,height:v.height,duration:0,source:'Pixabay',sizes:{small:v.webformatURL,medium:v.largeImageURL,large:v.fullHDURL||v.largeImageURL}}; }
+function normalizeOpenverseImage(v){ const tags=(v.tags||[]).map(t=>t.name).join(', '); return {kind:'image',id:v.id,tags,pageURL:v.foreign_landing_url,poster:v.thumbnail||v.url,preview:v.thumbnail||v.url,width:v.width||0,height:v.height||0,duration:0,source:(v.source||'openverse'),sizes:{small:v.thumbnail,medium:v.url,large:v.url}}; }
+
+const STAR=`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7 7 .5-5.5 4.5L18 21l-6-3.5L6 21l1.5-7L2 9.5 9 9z"/></svg>`;
+function buildCard(item,index){
+  const card=document.createElement('div'); card.className='card'; card.style.animationDelay=Math.min(index*0.04,0.5)+'s';
+  const tags=(item.tags||'').split(',').slice(0,3).join(', ');
+  const dur=item.duration?`${Math.floor(item.duration/60)}:${String(item.duration%60).padStart(2,'0')}`:'';
+  const isFav=favSet.has(item.id);
+  const media=item.kind==='video'?`<video src="${item.preview}" poster="${item.poster}" controls muted preload="metadata" playsinline></video>`:`<img src="${item.preview}" alt="${tags}" loading="lazy">`;
+  const ov=item.source&&item.source.toLowerCase()!=='pixabay';
+  const sizes=item.sizes||{};
+  card.innerHTML=`<div class="card-media">${media}<button class="fav-btn ${isFav?'active':''}" data-id="${item.id}">${STAR}</button></div>
+    <div class="card-body"><div class="card-title">${tags||(item.kind==='video'?'Видео':'Фото')}</div>
+    <div class="card-meta"><span>${item.width}×${item.height}${dur?' · '+dur:''}</span><a href="${item.pageURL}" target="_blank" class="src-badge ${ov?'ov':''}">🔗 ${ov?item.source:'Pixabay'}</a></div>
+    <div class="size-buttons">
+      ${sizes.small?`<button class="size-btn" data-url="${sizes.small}" data-id="${item.id}" data-label="small">⬇ Small</button>`:`<button class="size-btn" disabled>Small</button>`}
+      ${sizes.medium?`<button class="size-btn" data-url="${sizes.medium}" data-id="${item.id}" data-label="medium">⬇ Medium</button>`:`<button class="size-btn" disabled>Medium</button>`}
+      ${sizes.large?`<button class="size-btn" data-url="${sizes.large}" data-id="${item.id}" data-label="large">⬇ HD</button>`:`<button class="size-btn" disabled>HD</button>`}
+    </div></div>`;
+  card.querySelector('.fav-btn').onclick=()=>toggleFavorite(item);
+  card.querySelectorAll('.size-btn[data-url]').forEach(btn=>btn.onclick=()=>{ const a=document.createElement('a'); a.href=btn.dataset.url; a.download=`aidownloader_${btn.dataset.id}_${btn.dataset.label}.${item.kind==='video'?'mp4':'jpg'}`; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); document.body.removeChild(a); toast('⬇️ Скачивание начато'); });
+  return card;
+}
+function setStatus(msg,cls=''){ const s=$('status'); s.className='status '+cls; s.innerHTML=msg; }
+
+async function runSearch(userText,page=1,replace=true){
+  const lang=detectLang(userText); const eng=await translateToEnglish(userText,lang); const kw=toKeywords(eng,'en');
+  if(!kw)throw new Error('Введите название'); currentQuery=userText;
+  setStatus(`<span class="loader"></span> Ищем «<b style="color:var(--accent1)">${kw}</b>» (${lang.toUpperCase()})`);
+  let items=[], total=0;
+  if(currentMode==='video'){ const d=await searchPixabayVideo(kw,page,currentOrder); items=(d.hits||[]).map(normalizeVideo); total=d.totalHits||0; }
+  else { // фото: Openverse + Pixabay параллельно, берём что ответит
+    const [ov,pb]=await Promise.allSettled([searchOpenverse(kw,page),searchPixabayImage(kw,page,currentOrder)]);
+    const ovi=ov.status==='fulfilled'?(ov.value.results||[]).map(normalizeOpenverseImage):[];
+    const pbi=pb.status==='fulfilled'?(pb.value.hits||[]).map(normalizePixabayImage):[];
+    items=[...pbi,...ovi]; total=(pb.status==='fulfilled'?pb.value.totalHits||0:0)+(ov.status==='fulfilled'?ov.value.result_count||0:0);
   }
-  if (res.status === 429) throw new Error('Слишком много запросов. Подождите минуту.');
-  if (!res.ok) throw new Error('Ошибка Pixabay: ' + res.status);
-  return await res.json();
+  $('totalCount').textContent=total.toLocaleString('ru-RU');
+  const r=$('results'); if(replace){allResults=items;currentPage=1;r.innerHTML='';}else{allResults=allResults.concat(items);}
+  items.forEach((it,i)=>r.appendChild(buildCard(it,replace?i:i%15)));
+  $('btnLoadMore').style.display=(items.length>=15&&allResults.length<total)?'block':'none';
+  if(allResults.length===0)setStatus('Ничего не найдено. Попробуйте другое название.','error');
+  else setStatus(`✅ Показано ${allResults.length} из ${total}`,'success');
 }
 
-function pickSizes(v) {
-  return {
-    small:  v.videos.small,
-    medium: v.videos.medium,
-    large:  v.videos.large,
-  };
-}
+// Табы
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); currentMode=t.dataset.mode; if(currentMode==='favorites')renderFavorites(); else if(currentQuery&&currentUser)runSearch(currentQuery,1,true); else if(!currentUser)lockStatus(); else { $('results').innerHTML=''; $('btnLoadMore').style.display='none'; setStatus('Введите название'); } });
+// Сортировка
+document.querySelectorAll('.sort-btn').forEach(b=>b.onclick=()=>{ document.querySelectorAll('.sort-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active'); currentOrder=b.dataset.order; if(currentQuery&&currentUser&&currentMode!=='favorites')runSearch(currentQuery,1,true); });
 
-function renderCards(videos, append = false) {
-  const results = $('results');
-  if (!append) results.innerHTML = '';
+// ГЛАВНОЕ: две кнопки, гейт авторизации
+$('btnCreateVideo').onclick=async()=>{ if(!requireAuth())return; $('btnCreateVideo').disabled=true; try{ currentMode='video'; document.querySelector('.tab[data-mode="video"]').click(); await runSearch($('prompt').value.trim()); }catch(e){setStatus('❌ '+e.message,'error');} finally{$('btnCreateVideo').disabled=false;} };
+$('btnCreatePhoto').onclick=async()=>{ if(!requireAuth())return; $('btnCreatePhoto').disabled=true; try{ currentMode='image'; document.querySelector('.tab[data-mode="image"]').click(); await runSearch($('prompt').value.trim()); }catch(e){setStatus('❌ '+e.message,'error');} finally{$('btnCreatePhoto').disabled=false;} };
+$('btnLoadMore').onclick=async()=>{ $('btnLoadMore').disabled=true; $('btnLoadMore').textContent='Загружаем…'; try{ await runSearch(currentQuery,currentPage+1,false); currentPage++; }catch(e){setStatus('❌ '+e.message,'error');} $('btnLoadMore').textContent='Показать ещё ↓'; $('btnLoadMore').disabled=false; };
+$('prompt').addEventListener('keydown',e=>{ if(e.key==='Enter'){ if(currentMode==='image')$('btnCreatePhoto').click(); else $('btnCreateVideo').click(); } });
 
-  videos.forEach(v => {
-    const s = pickSizes(v);
-    const preview = s.small || s.medium || s.large;
-    if (!preview) return;
-
-    const card = document.createElement('div');
-    card.className = 'card';
-    const tags = (v.tags || '').split(',').slice(0, 3).join(', ');
-    const duration = v.duration ? `${Math.floor(v.duration/60)}:${String(v.duration%60).padStart(2,'0')}` : '';
-
-    card.innerHTML = `
-      <video src="${preview.url}" poster="${preview.picture}" controls muted preload="metadata" playsinline></video>
-      <div class="card-body">
-        <div class="card-title">${tags || 'Pixabay video'}</div>
-        <div class="card-meta">
-          <span>${preview.width}×${preview.height} · ${duration}</span>
-          <a href="${v.pageURL}" target="_blank" class="pixabay-badge">🔗 Pixabay</a>
-        </div>
-        <div class="size-buttons">
-          ${s.small ? `<button class="size-btn" data-url="${s.small.url}" data-id="${v.id}" data-label="small">⬇ Small</button>` : `<button class="size-btn" disabled>Small</button>`}
-          ${s.medium ? `<button class="size-btn" data-url="${s.medium.url}" data-id="${v.id}" data-label="medium">⬇ Medium</button>` : `<button class="size-btn" disabled>Medium</button>`}
-          ${s.large ? `<button class="size-btn" data-url="${s.large.url}" data-id="${v.id}" data-label="large">⬇ HD</button>` : `<button class="size-btn" disabled>HD</button>`}
-        </div>
-      </div>`;
-    results.appendChild(card);
-  });
-
-  results.querySelectorAll('.size-btn[data-url]').forEach(btn => {
-    btn.onclick = () => {
-      const a = document.createElement('a');
-      a.href = btn.dataset.url;
-      a.download = `aidownloader_${btn.dataset.id}_${btn.dataset.label}.mp4`;
-      a.target = '_blank'; a.rel = 'noopener';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setStatus('⬇️ Скачивание начато', 'success');
-    };
-  });
-}
-
-function setStatus(msg, cls = '') {
-  const s = $('status');
-  s.className = 'status ' + cls;
-  s.innerHTML = msg;
-}
-
-// Кнопки сортировки
-document.querySelectorAll('.sort-btn').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('.sort-btn').forEach(x => x.classList.remove('active'));
-    btn.classList.add('active');
-    currentOrder = btn.dataset.order;
-    if (currentQuery) runSearch(currentQuery, 1, true);
-  };
-});
-
-// Общий запуск поиска
-async function runSearch(userText, page = 1, replace = true) {
-  const isEnglish = /^[a-zA-Z0-9\s,.'-]+$/.test(userText);
-  const eng = isEnglish ? userText : await translateToEnglish(userText);
-  const keywords = toKeywords(eng, true);
-
-  if (!keywords) throw new Error('Запрос слишком короткий');
-  currentQuery = userText;
-
-  setStatus(`<span class="loader"></span> Ищем по запросу: <b style="color:#6cf">${keywords}</b>`);
-
-  const data = await searchPixabay(keywords, page, currentOrder);
-  $('totalCount').textContent = (data.totalHits || 0).toLocaleString('ru-RU');
-
-  if (replace) { allResults = data.hits || []; currentPage = 1; renderCards(allResults); }
-  else { allResults = allResults.concat(data.hits || []); renderCards(data.hits, true); }
-
-  $('btnLoadMore').style.display =
-    (data.hits && data.hits.length === 15 && allResults.length < data.totalHits)
-      ? 'block' : 'none';
-
-  if (allResults.length === 0) {
-    setStatus('Ничего не найдено. Попробуйте другой запрос.', 'error');
-  } else {
-    setStatus(`✅ Показано ${allResults.length} из ${data.totalHits}`, 'success');
-  }
-}
-
-$('btnCreate').onclick = async () => {
-  $('btnCreate').disabled = true;
-  try { await runSearch($('prompt').value.trim()); }
-  catch (e) { setStatus('❌ ' + e.message, 'error'); }
-  finally { $('btnCreate').disabled = false; }
-};
-
-$('btnLoadMore').onclick = async () => {
-  $('btnLoadMore').textContent = 'Загружаем…';
-  $('btnLoadMore').disabled = true;
-  try { await runSearch(currentQuery, currentPage + 1, false); currentPage++; }
-  catch (e) { setStatus('❌ ' + e.message, 'error'); }
-  $('btnLoadMore').textContent = 'Показать ещё ↓';
-  $('btnLoadMore').disabled = false;
-};
-
-$('prompt').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnCreate').click(); });
+let tt; function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),2200); }
 </script>
 </body>
 </html>
