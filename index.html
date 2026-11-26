@@ -15,6 +15,8 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .container{max-width:1100px;margin:0 auto;padding:0 20px 40px;flex:1;width:100%;position:relative;z-index:1}
 header{display:flex;align-items:center;justify-content:space-between;padding:20px 0;margin-bottom:20px;gap:10px;flex-wrap:wrap}
 .logo{font-size:24px;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.balance{padding:9px 13px;border:1px solid rgba(34,211,238,.25);background:rgba(34,211,238,.08);border-radius:12px;font-size:13px;font-weight:700;color:var(--accent1)}
 .btn{padding:12px 20px;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;transition:transform .12s,filter .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
 .btn:active{transform:scale(.97)}
 .btn-primary{background:var(--grad);color:#fff;box-shadow:0 6px 22px -8px rgba(168,85,247,.7)}
@@ -64,7 +66,7 @@ footer a{color:var(--accent1);text-decoration:none}
 .auth-btn img{width:20px;height:20px}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#101014;border:1px solid var(--border-strong);color:var(--text);padding:12px 22px;border-radius:999px;font-size:14px;z-index:2000;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-@media(max-width:600px){.container{padding-left:14px;padding-right:14px}.search-box{padding:14px}.search-input{min-width:100%}.search-row .btn{width:100%;justify-content:center}.results{grid-template-columns:1fr}}
+@media(max-width:600px){.container{padding-left:14px;padding-right:14px}.search-box{padding:14px}.search-input{min-width:100%}.search-row .btn{width:100%;justify-content:center}.results{grid-template-columns:1fr}.header-right{width:100%;justify-content:flex-end}}
 </style>
 </head>
 <body>
@@ -129,7 +131,6 @@ footer a{color:var(--accent1);text-decoration:none}
 </footer>
 
 <script>
-// ВАЖНО: проверьте, что это точный адрес Worker из Cloudflare → Workers & Pages → Visit.
 const API_URL = 'https://aidownloader-api-v2.kisa302de.workers.dev';
 const PIXABAY_API_KEY = '58836245-0c367cdb8ea315a0e93821391';
 const $ = id => document.getElementById(id);
@@ -147,39 +148,27 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 
 let currentUser = null;
+let currentMode = 'ai';
 let pollTimer = null;
 let generationTimeout = null;
-let currentMode = 'ai';
-
-auth.onAuthStateChanged(user => {
-  currentUser = user;
-  updateAuthUI();
-});
-
-function updateAuthUI() {
-  const s = $('authSection');
-  if (currentUser) {
-    const name = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Пользователь');
-    const avatar = currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=a855f7&color=fff`;
-    s.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px">
-        <img src="${avatar}" alt="" style="width:32px;height:32px;border-radius:50%">
-        <span style="font-size:13px;color:var(--muted)">${escapeHtml(name)}</span>
-      </div>
-      <button class="btn" style="background:var(--surface);color:var(--text);border:1px solid var(--border-strong)" onclick="signOut()">Выйти</button>`;
-    setStatus('✅ Вы вошли. Введите описание и нажмите «Сгенерировать»');
-    setStatusClass('');
-  } else {
-    s.innerHTML = `<button class="btn btn-primary" onclick="openAuthModal()">Войти</button>`;
-    setStatus('🔒 Войдите, чтобы начать генерацию');
-    setStatusClass('');
-  }
-}
+let toastTimer = null;
+let balance = null;
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, ch => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
   })[ch]);
+}
+
+function setStatus(message) { $('status').innerHTML = message; }
+function setStatusClass(cls) { $('status').className = 'status ' + (cls || ''); }
+
+function toast(message) {
+  const element = $('toast');
+  element.textContent = message;
+  element.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => element.classList.remove('show'), 2600);
 }
 
 function openAuthModal() { $('authModal').classList.add('active'); }
@@ -198,6 +187,7 @@ async function signInWithGoogle() {
 
 function signOut() {
   auth.signOut();
+  balance = null;
   toast('Вы вышли');
 }
 
@@ -209,6 +199,91 @@ function requireAuth() {
   }
   return true;
 }
+
+// Все запросы к защищённому API идут с Firebase ID Token.
+async function apiRequest(path, options = {}) {
+  if (!currentUser) throw new Error('Сначала войдите в аккаунт');
+  const token = await currentUser.getIdToken();
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      'Authorization': `Bearer ${token}`,
+      ...(options.body ? {'Content-Type':'application/json'} : {})
+    }
+  });
+
+  let data;
+  try { data = await response.json(); }
+  catch { throw new Error('Сервер вернул некорректный ответ'); }
+
+  if (!response.ok) {
+    if (response.status === 402) throw new Error('Недостаточно кредитов. Пополнение баланса подключим следующим этапом.');
+    if (response.status === 401) throw new Error('Авторизация устарела. Выйдите и войдите снова.');
+    throw new Error(data.error || `Ошибка сервера: ${response.status}`);
+  }
+  return data;
+}
+
+async function refreshBalance() {
+  if (!currentUser) {
+    balance = null;
+    updateAuthUI();
+    return;
+  }
+  try {
+    const data = await apiRequest('/me');
+    balance = Number(data.credits) || 0;
+    updateAuthUI();
+  } catch (error) {
+    balance = null;
+    updateAuthUI();
+    setStatus('❌ Не удалось загрузить баланс: ' + escapeHtml(error.message));
+    setStatusClass('error');
+  }
+}
+
+function updateAuthUI() {
+  const s = $('authSection');
+  if (currentUser) {
+    const name = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Пользователь');
+    const avatar = currentUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=a855f7&color=fff`;
+    const balanceHtml = balance === null ? '<div class="balance">Баланс: …</div>' : `<div class="balance">⚡ ${balance} кредитов</div>`;
+    s.innerHTML = `
+      <div class="header-right">
+        ${balanceHtml}
+        <div style="display:flex;align-items:center;gap:8px">
+          <img src="${avatar}" alt="" style="width:32px;height:32px;border-radius:50%">
+          <span style="font-size:13px;color:var(--muted)">${escapeHtml(name)}</span>
+        </div>
+        <button class="btn" style="background:var(--surface);color:var(--text);border:1px solid var(--border-strong)" id="signOutBtn">Выйти</button>
+      </div>`;
+    $('signOutBtn').onclick = signOut;
+  } else {
+    s.innerHTML = `<button class="btn btn-primary" id="signInBtn">Войти</button>`;
+    $('signInBtn').onclick = openAuthModal;
+  }
+}
+
+auth.onAuthStateChanged(async user => {
+  currentUser = user;
+  balance = null;
+  updateAuthUI();
+  if (user) {
+    setStatus('<span class="loader"></span> Загружаем баланс...');
+    setStatusClass('');
+    await refreshBalance();
+    if (balance !== null) {
+      setStatus(balance > 0
+        ? '✅ Вы вошли. Можно создавать видео.'
+        : '✅ Вы вошли. На балансе пока 0 кредитов.');
+      setStatusClass('');
+    }
+  } else {
+    setStatus('🔒 Войдите, чтобы начать генерацию');
+    setStatusClass('');
+  }
+});
 
 document.querySelectorAll('.tab').forEach(tab => {
   tab.onclick = () => {
@@ -245,7 +320,6 @@ function getVideoUrl(output) {
 
 $('btnGenerate').onclick = async () => {
   const prompt = $('aiPrompt').value.trim();
-
   if (!prompt) {
     setStatus('❌ Введите описание видео');
     setStatusClass('error');
@@ -261,66 +335,59 @@ $('btnGenerate').onclick = async () => {
   setProgress(5);
 
   try {
-    const response = await fetch(`${API_URL}/generate`, {
+    const data = await apiRequest('/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({prompt})
     });
-    const data = await response.json();
 
-    if (!response.ok) throw new Error(data.error || `Ошибка сервера: ${response.status}`);
-    if (!data.id) throw new Error('Replicate не вернул ID задачи');
-
+    await refreshBalance();
     setStatus('<span class="loader"></span> MiniMax создаёт видео...');
     setProgress(15);
 
     let elapsed = 0;
     pollTimer = setInterval(async () => {
       try {
-        const statusResponse = await fetch(`${API_URL}/status/${encodeURIComponent(data.id)}`);
-        const result = await statusResponse.json();
-
-        if (!statusResponse.ok) throw new Error(result.error || 'Не удалось проверить статус');
-
+        const result = await apiRequest(`/status/${encodeURIComponent(data.id)}`);
         if (result.status === 'succeeded') {
           const videoUrl = getVideoUrl(result.output);
           if (!videoUrl) throw new Error('Генерация завершена, но ссылка на видео отсутствует');
-
           stopGeneration();
           setProgress(100);
           setStatus('✅ Видео успешно создано!');
           setStatusClass('success');
           showVideo(videoUrl, prompt);
+          await refreshBalance();
           setTimeout(() => setProgress(0), 2000);
           return;
         }
-
         if (result.status === 'failed' || result.status === 'canceled') {
-          throw new Error(result.error || 'Генерация не удалась');
+          throw new Error(result.error || 'Генерация не удалась. Если кредит не вернулся, обновите баланс.');
         }
-
         elapsed += 3;
         setProgress(Math.min(15 + elapsed / 3, 95));
         setStatus(`<span class="loader"></span> Генерация... ${elapsed} сек.`);
       } catch (error) {
         stopGeneration();
         setProgress(0);
-        setStatus('❌ ' + error.message);
+        await refreshBalance();
+        setStatus('❌ ' + escapeHtml(error.message));
         setStatusClass('error');
       }
     }, 3000);
 
-    generationTimeout = setTimeout(() => {
+    generationTimeout = setTimeout(async () => {
       stopGeneration();
       setProgress(0);
-      setStatus('❌ Время ожидания истекло. Проверьте задачу позже или попробуйте снова.');
+      await refreshBalance();
+      setStatus('❌ Время ожидания на странице истекло. Задача может ещё выполняться на сервере.');
       setStatusClass('error');
     }, 300000);
 
   } catch (error) {
     stopGeneration();
     setProgress(0);
-    setStatus('❌ ' + error.message);
+    await refreshBalance();
+    setStatus('❌ ' + escapeHtml(error.message));
     setStatusClass('error');
   }
 };
@@ -328,7 +395,6 @@ $('btnGenerate').onclick = async () => {
 function showVideo(url, prompt) {
   const card = document.createElement('div');
   card.className = 'card';
-
   const video = document.createElement('video');
   video.src = url;
   video.controls = true;
@@ -339,31 +405,27 @@ function showVideo(url, prompt) {
 
   const body = document.createElement('div');
   body.className = 'card-body';
-
   const title = document.createElement('div');
   title.className = 'card-title';
   title.textContent = prompt;
 
   const meta = document.createElement('div');
   meta.className = 'card-meta';
-
   const label = document.createElement('span');
   label.textContent = 'MiniMax Video-01 · AI Generated';
-
   const download = document.createElement('a');
   download.href = url;
   download.target = '_blank';
   download.rel = 'noopener';
   download.className = 'src-badge';
   download.textContent = '⬇ Открыть / скачать MP4';
-
   meta.append(label, download);
   body.append(title, meta);
   card.append(video, body);
   $('results').prepend(card);
-}
+};
 
-// Поиск видео через Pixabay
+// Поиск Pixabay — работает отдельно от платных AI-кредитов.
 $('btnSearch').onclick = async () => {
   const prompt = $('searchPrompt').value.trim();
   if (!prompt) {
@@ -383,80 +445,53 @@ $('btnSearch').onclick = async () => {
       `https://pixabay.com/api/videos/?key=${encodeURIComponent(PIXABAY_API_KEY)}&q=${encodeURIComponent(prompt)}&per_page=12`
     );
     const data = await response.json();
-
     if (!response.ok) throw new Error(data.message || 'Ошибка Pixabay');
     if (!data.hits || data.hits.length === 0) {
       setStatus('Ничего не найдено');
       setStatusClass('');
       return;
     }
-
     setStatus(`✅ Найдено результатов: ${data.total}`);
     setStatusClass('success');
 
     data.hits.forEach(item => {
       const file = item.videos && (item.videos.medium || item.videos.large || item.videos.small);
       if (!file) return;
-
       const card = document.createElement('div');
       card.className = 'card';
-
       const video = document.createElement('video');
       video.src = file.url;
       video.controls = true;
       video.muted = true;
       video.preload = 'metadata';
       video.playsInline = true;
-
       const body = document.createElement('div');
       body.className = 'card-body';
-
       const title = document.createElement('div');
       title.className = 'card-title';
       title.textContent = item.tags || 'Видео';
-
       const meta = document.createElement('div');
       meta.className = 'card-meta';
-
       const dimensions = document.createElement('span');
       dimensions.textContent = `${file.width}×${file.height}`;
-
       const link = document.createElement('a');
       link.href = file.url;
       link.target = '_blank';
       link.rel = 'noopener';
       link.className = 'src-badge';
       link.textContent = '⬇ Открыть видео';
-
       meta.append(dimensions, link);
       body.append(title, meta);
       card.append(video, body);
       $('results').appendChild(card);
     });
   } catch (error) {
-    setStatus('❌ ' + error.message);
+    setStatus('❌ ' + escapeHtml(error.message));
     setStatusClass('error');
   } finally {
     $('btnSearch').disabled = false;
   }
 };
-
-function setStatus(message) {
-  $('status').innerHTML = message;
-}
-
-function setStatusClass(cls) {
-  $('status').className = 'status ' + (cls || '');
-}
-
-let toastTimer;
-function toast(message) {
-  const element = $('toast');
-  element.textContent = message;
-  element.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => element.classList.remove('show'), 2400);
-}
 
 $('aiPrompt').addEventListener('keydown', event => {
   if (event.key === 'Enter') $('btnGenerate').click();
@@ -464,7 +499,6 @@ $('aiPrompt').addEventListener('keydown', event => {
 $('searchPrompt').addEventListener('keydown', event => {
   if (event.key === 'Enter') $('btnSearch').click();
 });
-
 document.querySelectorAll('.modal-overlay').forEach(modal => {
   modal.addEventListener('click', event => {
     if (event.target === modal) modal.classList.remove('active');
